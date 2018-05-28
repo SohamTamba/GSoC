@@ -2,71 +2,34 @@
 layout: post
 title:  "Application Period"
 date:   2017-05-26 14:10:51 +0800
-categories: Jekyll
-tags: Jekyll
-description: This is just another copy of the read me page of Jekyll.
+categories: GSoC
+tags: GSoC
+description: FEB-13-2018 to MAR-27-2018.
 ---
-# [Jekyll](https://jekyllrb.com/)
 
-<!---
-[![Gem Version](https://img.shields.io/gem/v/jekyll.svg)][ruby-gems]
-[![Linux Build Status](https://img.shields.io/travis/jekyll/jekyll/master.svg?label=Linux%20build)][travis]
-[![Windows Build status](https://img.shields.io/appveyor/ci/jekyll/jekyll/master.svg?label=Windows%20build)][appveyor]
-[![Test Coverage](https://img.shields.io/codeclimate/coverage/github/jekyll/jekyll.svg)][coverage]
-[![Code Climate](https://img.shields.io/codeclimate/github/jekyll/jekyll.svg)][codeclimate]
-[![Dependency Status](https://img.shields.io/gemnasium/jekyll/jekyll.svg)][gemnasium]
-[![Security](https://hakiri.io/github/jekyll/jekyll/master.svg)][hakiri]
+### Choosing a Project
+I was interested in a HPC(High Performanc Computing) project. I started my search in Julia because it is said to be a language that is fast like C and easy to code like python. While skimming the [HPC](https://julialang.org/soc/projects/hpc.html) section of Julia's GSoC projects, I came across the Parallel Graph Development project.
 
-[ruby-gems]: https://rubygems.org/gems/jekyll
-[gemnasium]: https://gemnasium.com/jekyll/jekyll
-[codeclimate]: https://codeclimate.com/github/jekyll/jekyll
-[coverage]: https://codeclimate.com/github/jekyll/jekyll/coverage
-[hakiri]: https://hakiri.io/github/jekyll/jekyll/master
-[travis]: https://travis-ci.org/jekyll/jekyll
-[appveyor]: https://ci.appveyor.com/project/jekyll/jekyll/branch/master
+### Contributions to LightGraphs
+My first contribution was just [one line](https://github.com/JuliaGraphs/LightGraphs.jl/pull/839) that saved (|E|-|V|+1)*(size of vertex) memory for Prim's algorithm.
+My more useful contributions were:
+1. Massive improvement in run-time of [Kruskal's MST](https://github.com/JuliaGraphs/LightGraphs.jl/pull/843) using the union-find data structure.
+2. Implement [Greedy Coloring](https://github.com/JuliaGraphs/LightGraphs.jl/pull/844).
+3. Massive improvement in run-time of [Floyd Warshall](https://github.com/JuliaGraphs/LightGraphs.jl/pull/873) by making it more cache efficient.
 
-Jekyll is a simple, blog-aware, static site generator perfect for personal, project, or organization sites. Think of it like a file-based CMS, without all the complexity. Jekyll takes your content, renders Markdown and Liquid templates, and spits out a complete, static website ready to be served by Apache, Nginx or another web server. Jekyll is the engine behind [GitHub Pages](https://pages.github.com), which you can use to host sites right from your GitHub repositories.
+### Writing a Proposal
+[My Proposal](https://github.com/SohamTamba/GSoC/blob/gh-pages/Proposal.pdf) consists of two portions:
+  * Implementing approximation algorithms and greedy hueristics for graph problems.
 
-## Philosophy
+There are several NP-Hard problems that occur in practice often. Fast algorithms producing non-optimal solutions were lacking in LightGraphs so I proposed to include them.
 
-Jekyll does what you tell it to do — no more, no less. It doesn't try to outsmart users by making bold assumptions, nor does it burden them with needless complexity and configuration. Put simply, Jekyll gets out of your way and allows you to concentrate on what truly matters: your content.
+  * Creating parallel implementations for algorithms that are inherently slow.
 
-See: https://jekyllrb.com/philosophy
+The issue with parallel computing is the overheads cause due to communication between processors could lead to an overall reduction in performance. Algorithms that inherently require more work to be done (relative to the input size) will usually have more scope for improvement through parallelization. Eg. Floyd Warshall's shortest path is inherently slow because it requires a cubic number of operations (with respect to the input).
 
-## Having trouble?
+### Lessons Learned
+  * Spend more time on the proposal and less time on pull requests. 
+I had decided to apply GSoC 1.5 months before the application submission deadline. I spent one month making pull requests and only 2 weeks writing the proposal. Trust me, 2 weeks is not enough time to produce a proposal that concisely and unambigiously explains every detail of your project project. Of course, deciding to apply for GSoC earlier would have also helped my chances.
+  * Communicate with prospective mentors and the project owners sooner.
+I expressed my interest in working on the project only 2 weeks before the deadline. Interacting with the community earlier would have helped me write proposal that the community would be more interested in.
 
-See: https://jekyllrb.com/docs/troubleshooting/
-
-## Getting Started
-
-* [Install](https://jekyllrb.com/docs/installation/) the gem
-* Read up about its [Usage](https://jekyllrb.com/docs/usage/) and [Configuration](https://jekyllrb.com/docs/configuration/)
-* Take a gander at some existing [Sites](https://wiki.github.com/jekyll/jekyll/sites)
-* [Fork](https://github.com/jekyll/jekyll/fork) and [Contribute](https://jekyllrb.com/docs/contributing/) your own modifications
-* Have questions? Check out our official forum community [Jekyll Talk](https://talk.jekyllrb.com/) or [`#jekyll` on irc.freenode.net](https://botbot.me/freenode/jekyll/)
-
-## Code of Conduct
-
-In order to have a more open and welcoming community, Jekyll adheres to a
-[code of conduct](CODE_OF_CONDUCT.markdown) adapted from the Ruby on Rails code of
-conduct.
-
-Please adhere to this code of conduct in any interactions you have in the
-Jekyll community. It is strictly enforced on all official Jekyll
-repositories, websites, and resources. If you encounter someone violating
-these terms, please let a [team captain](https://github.com/orgs/jekyll/teams/affinity-team-captains/members) know and we will address it as soon as possible.
-
-## Diving In
-
-* [Migrate](http://import.jekyllrb.com/docs/home/) from your previous system
-* Learn how the [YAML Front Matter](https://jekyllrb.com/docs/frontmatter/) works
-* Put information on your site with [Variables](https://jekyllrb.com/docs/variables/)
-* Customize the [Permalinks](https://jekyllrb.com/docs/permalinks/) your posts are generated with
-* Use the built-in [Liquid Extensions](https://jekyllrb.com/docs/templates/) to make your life easier
-* Use custom [Plugins](https://jekyllrb.com/docs/plugins/) to generate content specific to your site
-
-## License
-
-See the [LICENSE](https://github.com/jekyll/jekyll/blob/master/LICENSE) file.
-
--->
