@@ -1,7 +1,7 @@
 
-Preview
+Blog
 =======
-GSoC 2018 Blog.
+https://sohamtamba.github.io/GSoC/
 
 Credits
 ======
