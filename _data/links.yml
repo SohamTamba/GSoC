@@ -4,8 +4,12 @@
 - url: "https://github.com/JuliaGraphs/LightGraphs.jl"
   title: "LightGraphs"
 
-- url: "https://github.com/SohamTamba"
+- url: "https://julialang.org/soc/ideas-page.html"
   title: "JSoC"
+
+
+- url: "https://www.numfocus.org"
+  title: "NumFOCUS"
 
 - url: "https://summerofcode.withgoogle.com"
   title: "GSoC"

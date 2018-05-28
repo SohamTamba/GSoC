@@ -1,4 +1,17 @@
-
+{% assign trans = site.data.values[site.lan] %}
+<div class="sidebar well">
+    <header class="sidebar-header" role="banner">
+        <a href="{{ site.baseurl }}/">
+            <img src="{{ site.baseurl }}/assets/images/soham.jpeg" width="230" height="230" class="img-circle" />
+        </a>
+        <!--
+        <h3 class="title">
+        <a href="{{ site.BASE_PATH }}/">{{ site.title }}</a>
+        </h3>
+        -->
+    </header>
+    
+</div>
 <div class="sidebar well">
     {% include links-list.html %}
 </div>

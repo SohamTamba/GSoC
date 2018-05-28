@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Application Period"
-date:   2017-05-26 14:10:51 +0800
+date:   2018-05-26 14:10:51 +0800
 categories: GSoC
 tags: GSoC
 description: FEB-13-2018 to MAR-27-2018.
