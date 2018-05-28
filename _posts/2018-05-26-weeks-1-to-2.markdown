@@ -1,12 +1,12 @@
 ---
 layout: post
-title:  "Week 1 to 2"
+title:  "Weeks 1 to 2"
 date:   2018-05-26 14:10:51 +0800
 categories: GSoC
 tags: GSoC
 description: MAY-14-2018 to MAY-26-2018.
 ---
-# Tasks completed in weeks 1 to 2.
+# Tasks completed in weeks 1 to 2
 
 1. Approximation algorithms and greedy heuristics for the following problems:
   * Travelling Salesman
