@@ -25,23 +25,24 @@ description: MAY-14-2018 to MAY-26-2018.
 
 ### Approximation algorithms and Greedy Hueristics
 I implemented several straight forward approximation algorithms and greedy hueristics.
-I deviated from the proposal in the solution to Travelling Salesman because [Christofides](https://en.wikipedia.org/wiki/Christofides_algorithm) algorithm would require linear program solvers and LightGraphs.jl has a policy of minimising dependencies.
-A common problem I faced while implementing the algorithms is when using a distributed for loop, the output would be type instable.
+I deviated from the proposal in the solution to Travelling Salesman because [Christofides algorithm](https://en.wikipedia.org/wiki/Christofides_algorithm) would require linear program solvers and LightGraphs has a policy of minimising dependencies.
+A common problem I faced while implementing the algorithms is using a 'distributed for loop' would result in type instable code.
 
 ### Johnson's Shortest Path Algorithm
 Implemented [Johnson's Shortest Path Algorithm](https://en.wikipedia.org/wiki/Johnson%27s_algorithm).
-This algorithms invloves applying a transform to the edge weights and then applying Dijkstra. 
-I initially forgot to consider the case where the edge weights are immutable. An additional |E| overhead will have to be incurred in that case.
+This algorithms invloves applying a transform to the edge weights and then applying Dijkstra on each vertex. 
+I initially failed to consider the case where the edge weights are immutable. 
+An additional |E| overhead will have to be incurred if the input includes immutable edge weights.
 
 ### Kruskal's Minimum Spanning Tree
 In this algorithm, we iterate over the edges of a graph in the ascending order of weights until a spanning tree is formed.
-I replaced the priority queue being used obtain the edge of smallest weight with a sorting function. I also avoided creating a struct to store the edge and weight by using [sortperm](https://docs.julialang.org/en/stable/stdlib/sort/) so I could first sort the weights and then permute the edges.
+I replaced the priority queue being used obtain the edge of smallest weight with a sorting function. I also avoided creating a 'struct' to store the edges and its weights by using [sortperm](https://docs.julialang.org/en/stable/stdlib/sort/) so I could first sort the weights and then permute the edges.
 For a complete graph with 1,000 vertices, improved run-time from 193 ms to 28 ms.
 For a path graph with 10,000 vertices, improved run-time from 3.88 ms to 1.15 ms.
 
 ### Union Find Data Structure
 This data structure is already available in DataStructures.jl. I coded a version of it that would be optimised for graph algorithms
-that involve iteratively adding edges to the graph. However, there was only a minor improvement in performance when I coded Kruskal's MST using my data structure. So maintaining this code in LightGraphs may not be worth it when the data structure is available in a standard library.
+that involve iteratively adding edges to the graph. However, there was only a minor improvement in performance when I coded Kruskal's MST using my data structure. So maintaining this code in LightGraphs may not be worthwhile since the data structure is available in a standard library.
 For a complete graph with 1,000 vertices, improved run-time from 28 ms to 26 ms.
 
 # Lessons Learned
