@@ -1,0 +1,100 @@
+---
+layout: post
+title:  "Weeks 3 to 4"
+date:   2018-06-12 14:10:51 +0530
+categories: GSoC
+tags: GSoC
+description: MAY-26-2018 to JUNE-11-2018.
+---
+# Tasks completed in weeks 1 to 2
+
+1. Polished Pull Requests on Greedy Heuristics.
+2. Implemented Parallel Floyd Warshall All Pairs Shortest Paths algorithm.
+3. Implemented Karger Global Minimum Cut algorithm.
+4. Implemented Parallel Bellman Ford Shortest Paths algorithm. 
+
+# Details
+
+### Polished Pull Requests on Greedy Heuristics
+Several changes were made to the two Pull Requests consisted of functions to solve to 8 different problems. For example, we decided to use Bit Arrays instead of Boolean Arrays. Boolean Arrays require more memory (8x) than Bit Arrays but have faster access time. However, when the number of entries increases and it longer becomes possible to fit the entire array in a cache line, bit arrays become much faster as the number of [cache misses](http://www.bowdoin.edu/~allen/courses/cs220/lab7/notes.html) decrease.
+
+
+### Parallel Floyd Warshall All Pairs Shortest Paths
+This algorithm is used to find the shortest path between all pairs of vertices in a 
+graph that does not have any negative weight edge cycles.
+
+The algorithm can be descirbed roughly as:
+{% highlight julia %} 
+for pivot in vertices(g)
+	for (u, v) in vertices(g)*vertices(g)
+		if dists[u, v] < dists[u, pivot] + dists[pivot, v]
+			dists[u, v] = dists[u, pivot] + dists[pivot, v]
+			parents[u, v] = parents[pivot, v]
+		end
+	end
+end
+{% endhighlight %}
+I wrote the parallel version roughly as:
+{% highlight julia %} 
+for pivot in vertices(g)
+	@threads for (u, v) in vertices(g)*vertices(g)
+		if u == pivot || v == pivot
+			continue
+		end
+		if dists[u, v] < dists[u, pivot] + dists[pivot, v]
+			dists[u, v] = dists[u, pivot] + dists[pivot, v]
+			parents[u, v] = parents[pivot, v]
+		end
+	end
+end
+{% endhighlight %}
+The modification is needed to prevent a race-condition which would have occured if `u` or `v` was the `pivot`.
+
+For example:
+
+pivot = 1.
+
+Thread 1: u = 1 and v = 2
+
+Thread 2: u = 100 and v = 2
+
+If Thread 1 writes on `dists[u, v]` when Thread 2 reads `dists[pivot, v]` then we have a concurrent
+read-write. 
+
+The modification does not change the correctness of the algorithm because: 
+since there is no negative weight cycle, `dists[pivot, pivot] > 0`.
+When v = pivot: `dists[u, pivot] < dists[u, pivot] + dists[pivot, pivot]` is false.
+Hence the update.
+
+Benchmarks were taken on a Random Regular Graph with degree = |V|/100.
+
+|V| = 1000
+
+`seq_floyd_warshall_shortest_paths`: 806.479 ms (5 allocations: 15.26 MiB)
+
+`parallel_floyd_warshall_shortest_paths`: 592.930 ms (1005 allocations: 15.32 MiB)
+
+
+|V| = 2000
+
+`seq_floyd_warshall_shortest_paths`: 6.548 s (5 allocations: 61.04 MiB)
+
+`parallel_floyd_warshall_shortest_paths`: 4.997 s (2005 allocations: 61.16 MiB)
+
+|V| = 3000
+
+`seq_floyd_warshall_shortest_paths`: 21.194 s (5 allocations: 137.33 MiB)
+
+`parallel_floyd_warshall_shortest_paths`: 16.924 s (3005 allocations: 137.51 MiB)  
+
+
+### Karger Global Minimum Cut algorithm
+This is a simple algorithm that can be described as follows:
+While there are more than two nodes in a graph, choose an edge at random and contract it.
+The 2 nodes represent the cut.
+I implemented this algorithm using the disjoint set datastructure.
+
+### Parallel Bellman Ford Shortest Paths
+
+
+# Lessons Learned
