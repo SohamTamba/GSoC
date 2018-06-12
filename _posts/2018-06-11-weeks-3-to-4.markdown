@@ -6,7 +6,7 @@ categories: GSoC
 tags: GSoC
 description: MAY-26-2018 to JUNE-11-2018.
 ---
-# Tasks completed in weeks 1 to 2
+# Tasks completed in weeks 3 to 4
 
 1. Polished Pull Requests on Greedy Heuristics.
 2. Implemented Parallel Floyd Warshall All Pairs Shortest Paths algorithm.
@@ -15,37 +15,36 @@ description: MAY-26-2018 to JUNE-11-2018.
 
 # Details
 
-### Polished Pull Requests on Greedy Heuristics
+## Polished Pull Requests on Greedy Heuristics
 Several changes were made to the two Pull Requests consisted of functions to solve to 8 different problems. For example, we decided to use Bit Arrays instead of Boolean Arrays. Boolean Arrays require more memory (8x) than Bit Arrays but have faster access time. However, when the number of entries increases and it longer becomes possible to fit the entire array in a cache line, bit arrays become much faster as the number of [cache misses](http://www.bowdoin.edu/~allen/courses/cs220/lab7/notes.html) decrease.
 
 
-### Parallel Floyd Warshall All Pairs Shortest Paths
-This algorithm is used to find the shortest path between all pairs of vertices in a 
+## Parallel Floyd Warshall All Pairs Shortest Paths
+Floyd Warshall is an algorithm used to find the shortest path between all pairs of vertices in a 
 graph that does not have any negative weight edge cycles.
 
-The algorithm can be descirbed roughly as:
+The bottle neck portion of the algorithm can be descirbed roughly as:
 {% highlight julia %} 
 for pivot in vertices(g)
-	for (u, v) in vertices(g)*vertices(g)
-		if dists[u, v] < dists[u, pivot] + dists[pivot, v]
-			dists[u, v] = dists[u, pivot] + dists[pivot, v]
-			parents[u, v] = parents[pivot, v]
-		end
-	end
+    for (u, v) in vertices(g)*vertices(g)
+        if dists[u, v] > dists[u, pivot] + dists[pivot, v]
+            dists[u, v] = dists[u, pivot] + dists[pivot, v]
+            parents[u, v] = parents[pivot, v]
+        end
+    end
 end
 {% endhighlight %}
 I wrote the parallel version roughly as:
 {% highlight julia %} 
 for pivot in vertices(g)
-	@threads for (u, v) in vertices(g)*vertices(g)
-		if u == pivot || v == pivot
-			continue
-		end
-		if dists[u, v] < dists[u, pivot] + dists[pivot, v]
-			dists[u, v] = dists[u, pivot] + dists[pivot, v]
-			parents[u, v] = parents[pivot, v]
-		end
-	end
+    @threads for (u, v) in vertices(g)*vertices(g)
+        if u != pivot && v != pivot
+            if dists[u, v] > dists[u, pivot] + dists[pivot, v]
+                dists[u, v] = dists[u, pivot] + dists[pivot, v]
+                parents[u, v] = parents[pivot, v]
+            end
+        end
+    end
 end
 {% endhighlight %}
 The modification is needed to prevent a race-condition which would have occured if `u` or `v` was the `pivot`.
@@ -61,40 +60,166 @@ Thread 2: u = 100 and v = 2
 If Thread 1 writes on `dists[u, v]` when Thread 2 reads `dists[pivot, v]` then we have a concurrent
 read-write. 
 
-The modification does not change the correctness of the algorithm because: 
-since there is no negative weight cycle, `dists[pivot, pivot] > 0`.
+The modification does not change the correctness of the algorithm. 
+Since there is no negative weight cycle, `dists[pivot, pivot] >= 0`.
 When v = pivot: `dists[u, pivot] < dists[u, pivot] + dists[pivot, pivot]` is false.
 Hence the update.
 
-Benchmarks were taken on a Random Regular Graph with degree = |V|/100.
 
-|V| = 1000
+### Benchmarks
 
-`seq_floyd_warshall_shortest_paths`: 806.479 ms (5 allocations: 15.26 MiB)
+---
 
-`parallel_floyd_warshall_shortest_paths`: 592.930 ms (1005 allocations: 15.32 MiB)
+`d = rand(-nv(g):nv(g), nv(g), nv(g))`
 
+---
 
-|V| = 2000
+`g = random_regular_graph(1000, 10)`
 
-`seq_floyd_warshall_shortest_paths`: 6.548 s (5 allocations: 61.04 MiB)
+`seq_floyd_warshall_shortest_paths(g, d)`: 806.479 ms (5 allocations: 15.26 MiB)
 
-`parallel_floyd_warshall_shortest_paths`: 4.997 s (2005 allocations: 61.16 MiB)
+`parallel_floyd_warshall_shortest_paths(g, d)`: 592.930 ms (1005 allocations: 15.32 MiB)
 
-|V| = 3000
+---
 
-`seq_floyd_warshall_shortest_paths`: 21.194 s (5 allocations: 137.33 MiB)
+`g = random_regular_graph(2000, 20)`
 
-`parallel_floyd_warshall_shortest_paths`: 16.924 s (3005 allocations: 137.51 MiB)  
+`seq_floyd_warshall_shortest_paths(g, d)`: 6.548 s (5 allocations: 61.04 MiB)
 
+`parallel_floyd_warshall_shortest_paths(g, d)`: 4.997 s (2005 allocations: 61.16 MiB)
 
-### Karger Global Minimum Cut algorithm
+---
+
+`g = random_regular_graph(3000, 30)`
+
+`seq_floyd_warshall_shortest_paths(g, d)`: 21.194 s (5 allocations: 137.33 MiB)
+
+`parallel_floyd_warshall_shortest_paths(g, d)`: 16.924 s (3005 allocations: 137.51 MiB)  
+
+---
+
+## Karger Global Minimum Cut algorithm
 This is a simple algorithm that can be described as follows:
 While there are more than two nodes in a graph, choose an edge at random and contract it.
 The 2 nodes represent the cut.
 I implemented this algorithm using the disjoint set datastructure.
 
-### Parallel Bellman Ford Shortest Paths
+## Parallel Bellman Ford Shortest Paths
+Bellman Ford algorithm is used to find the shortest path from a single source in a 
+graph that does not have any negative weight edge cycles.
 
+
+The bottle neck portion of the algorithm:
+{% highlight julia %}
+active = Set(source) #Set does not allow duplicate elements.
+for repetition in vertices(g)
+    new_active = Set([])
+    for v in active
+        for u in outneighbors(g, v)
+            if dists[u] > dists[v] + edge_weight[v, u]
+                dists[u] > dists[v] + edge_weight[v, u]
+                parents[u] = v
+                push!(new_active, u)
+            end
+        end
+    end
+    active = new_active
+end
+{% endhighlight %}
+
+The parallel version:
+{% highlight julia %}
+active = Set(source) 
+for repetition in vertices(g)
+    
+    @threads for v in active
+        local_dists = dists_t[threadid()]
+        local_parents = parents_t[threadid()]
+        local_active = active_t[threadid()]
+
+        for u in outneighbors(g, v)
+            relax_dist = dists[v] + edge_weight[v, u]
+            if dists[u] > relax_dists && local_dists[u] > relax_dists
+                local_dists[u] = dists[v] + edge_weight[v, u]
+                local_parents[u] = v
+                push!(local_active, u)
+            end
+        end
+    end
+
+
+    for i in 1:nthreads()
+        local_dists = dists_t[i]
+        local_parents = parents_t[i]
+        local_active = active_t[i] 
+
+        for v in local_active
+            if local_dists[v] < dists[v]
+                dists[v] = local_dists[v]
+                parents[v] = local_parents[v]
+            end
+        end
+        empty!(local_active)
+    end
+    active = reduce(union, active_t) #Combine all the active_t sets
+
+end
+{% endhighlight %}
+
+In this implementation, every thread is provided its own variables.
+
+In the multi-threaded loop, the local variables (`dists_t`, `parents_t` and `active_t`), are updated sequentially.
+
+In the next loop, the shared variables (`dists`, `parents` and `active`), are updated sequentially.
+
+### Benchmarks
+
+---
+
+`d = rand(-nv(g):nv(g), nv(g), nv(g))`
+
+---
+
+g = Undirected Facebook Combined Graph from [SNAP Datasets](https://github.com/JuliaGraphs/SNAPDatasets.jl):
+
+`seq_bellman_ford_shortest_paths(g, 1, d)`:   30.670 s (92897 allocations: 764.58 MiB)
+
+`parallel_bellman_ford_shortest_paths(g, 1, d)`:   22.544 s (298931 allocations: 3.04 GiB)
+
+---
+
+`g = CompleteGraph(1000)`
+
+`seq_bellman_ford_shortest_paths(g, 1, d)`:   34.048 s (18012 allocations: 48.46 MiB)
+
+`parallel_bellman_ford_shortest_paths(g, 1, d)`:   10.983 s (69028 allocations: 196.66 MiB)
+
+---
 
 # Lessons Learned
+ * Smaller Pull Requests: This makes your code and pull requests easier to maintain . Also you can detect your mistakes earlier and avoid making them in future codes.
+
+ * Gather performance tips before coding: You may be unaware of the performance bugs existing and end up believing there is a flaw in the design rather than the implementation. When the documentation says a package is in the experimental stages, one should tread lightly. Eg. When using a multi-threaded loop `@threads for`, the code must be in the outer-most scope of the function.
+
+{% highlight julia %}
+for pivot in vertices(g)
+    @threads for (u, v) in vertices(g)*vertices(g)
+        DO SOMETHING
+    end
+end
+{% endhighlight %}
+Must be written as:
+
+{% highlight julia %}
+function _loopbody!(g, pivot, dists, parents)
+	@threads for (u, v) in vertices(g)*vertices(g)
+        DO SOMETHING
+    end
+
+for pivot in vertices(g)
+    _loopbody!(g, pivot, dists, parents)
+end
+
+{% endhighlight %}
+
+ * Save your build before updating: My build was broken for 2 days after updating to Julia 0.7 alpha. I could not revert to the previous version either. I eventually diagnosed the problem to be in one of the dependencies of LightGraphs.
