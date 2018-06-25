@@ -1,0 +1,269 @@
+---
+layout: post
+title:  "Weeks 5 to 6"
+date:   2018-06-24 14:10:51 +0530
+categories: GSoC
+tags: GSoC
+description: Parallel Bellman-Ford, Parallel Kruskal, Parallel Pagerank, Multi-threaded Centrality Measures.
+---
+# Tasks completed in weeks 5 to 6
+
+1. Memory efficient Parallel Bellman Ford Shortest Paths algorithm.
+2. Implemented Parallel Pagerank.
+3. Implemented Parallel Kruskal.
+4. Implemented Multi-threaded Centrality Measures.
+
+# Details
+
+## 1. Memory efficient Parallel Bellman Ford
+I was able to make athe algorithm thread-safe without using atomic operations or local memory.
+
+Replace:
+```
+for _ in 1:nv(g)
+    for u in active
+        for v in outneighbors(graph, u)
+            relax_dist = distmx[u, v] + dists[u]
+            if dists[v] > relax_dist 
+                dists[v] = relax_dist
+                parents[v] = u
+                union!(new_active, v)
+            end
+        end
+    end
+    active = new_active
+    new_active = Set([])
+end
+```
+With:
+```
+for _ in 1:nv(g)
+    active = outneighbors(g, active)
+    prev_dist = deepcopy(dists)
+
+    @threads for v in active
+        for u in inneighbors(g, v)
+            relax_dist = prev_dists[u] + distmx[u,v])
+            if prev_dists[v] > relax_dist
+                prev_dists[v] = relax_dist
+                parents[v] = u
+            end
+        end
+    end
+
+    for v in vertices(g) #Obtain new_active separately
+        if dists[v] < prev_dists[v]
+            union!(new_active, v)
+        end
+    end
+    active = new_active
+    new_active = Set([])
+end
+```
+
+Thus, I made the multi-threaded loop thread-safe by operating on the in-edges instead of the out-edges. The trade-off is the code will likely end up iterating over more edges than necessary. i.e. Instead of iterating over `outneighbors(g, active)`, it will iterate over `inneighbors(g, outneighbors(g, active))`.
+
+### Benchmarks
+
+---
+
+`nthreads() = 4`
+
+---
+
+`distmx = rand(-nv(g):nv(g), nv(g), nv(g))`
+
+---
+
+`g = loadsnaps(:facebook_combined)` ( \|V\| = 4039, \|E\| = 88234) with random weights.
+
+---
+
+`seq_bellman_ford_shortest_paths(g, distmx, 1)`: 39.675 s (92898 allocations: 764.61 MiB)
+
+---
+
+`parallel_bellman_ford_shortest_paths(g, distmx, 1)`: 24.677 s (28290 allocations: 251.70 MiB)
+
+---
+
+## 2. Parallel Pagerank
+The sequential code can be broadly described as:
+{% highlight julia %}
+x = fill(1/nv(g), nv(g))
+x_last = fill(1/nv(g), nv(g))
+for _ in 1:num_iterations
+    DO SOMETHING
+
+    for e in edges(g)
+        u, v = src(e), dst(e)
+        xlast[v] += α * x[u] / outdegree(g, u)
+        if !is_directed(g)
+            xlast[u] += α * x[v] / outdegree(g, v)
+        end
+    end
+
+    DO SOMETHING
+end
+{% endhighlight %}
+
+My first attempt to parallelize the code was:
+{% highlight julia %}
+x = fill(1/nv(g), nv(g))
+x_last = fill(1/nv(g), nv(g))
+for _ in 1:num_iterations
+    DO SOMETHING
+
+    @threads for v in vertices(g)
+        for u in inneighbors(g, v)
+            xlast[v] += α * x[u] / outdegree(g, u)
+        end
+    end
+
+    DO SOMETHING
+end
+{% endhighlight %}
+The implementation is perfectly thread-safe.
+One issue I noticed is `@threads` evenly divides the iteration space (`vertices(g)`) so one thread would end up iterating over much more edges than the others. Note that `@threads for e in edges(g)` would not be thread safe.
+
+Eg. Consider the case where `nthreads() = 2` and the input graph is a [star graph](https://en.wikipedia.org/wiki/Star_(graph_theory))  with 8 nodes.
+
+Thread 1 and 2 will be assigned nodes {1, 2, 3, 4} and {5, 6, 7, 8} respectively.
+
+Assuming node 1 is the internal node, thread 1 and 2 will iterate over edges {(1, 2), (1, 3), (1, 4) (2, 1), (3, 1), (4, 1)} and {(5, 1), (6, 1), (7, 1)  (8, 1)}.
+
+The optimal method to divide the work load would be to assign nodes {1} and {2, 3, 4, 5, 6, 7, 8} to threads 1 and 2 respectively. Then both threads will iterate over the same number of edges.
+
+Since the same iteration space is used multiple (`num_iterations`) times, it might be useful to find a partition of vertices that divides the edges more evenly.
+
+The problem of finding an optimal "load balanced" partition is NP-Hard (No polynomial time algorithm exists). I wrote a simple greedy heuristic to obtain a partition, `weighted_partition(weights, required_partitions)`.
+
+{% highlight julia %}
+partition = weighted_partition(indegree(g), nthreads())
+
+x = fill(1/nv(g), nv(g))
+x_last = fill(1/nv(g), nv(g))
+for _ in 1:num_iterations
+    DO SOMETHING
+
+    @threads for v_set in partition
+        for v in v_set
+            for u in inneighbors(g, v)
+                xlast[v] += α * x[u] / outdegree(g, u)
+            end
+        end
+    end
+
+    DO SOMETHING
+end
+{% endhighlight %}
+
+### Benchmarks
+
+`nthreads() = 4`
+
+---
+---
+
+`g = loadsnap(:ego_twitter_d)` (\|V\| = 81306, \|E\| = 1342310)
+
+
+---
+
+`pagerank(g)`:  192.269 ms (10 allocations: 1.86 MiB)
+
+---
+
+`parallel_pagerank(g)`: 70.239 ms (23 allocations: 3.72 MiB)
+
+---
+---
+
+`g = random_regular_graph(10000, 2000)` (\|V\| = 10,000, \|E\| = 10,000,000)
+
+---
+
+`pagerank(g)`:  1.404 s (10 allocations: 234.75 KiB)
+
+---
+
+`parallel_pagerank(g)`:  237.902 ms (20 allocations: 469.50 KiB)
+
+---
+
+
+
+## 3. Parallel Kruskal
+I attempted to parallelize the `find_cross_edge` portion of the algorithm.
+i.e. given a set of connected components and an array of edges, find the edge with minimum index (In the edge list) whose end-points are in two different graphs.
+
+These implementations are meant for algorithms of the following format:
+1. Search for the cross-edge `e` of minimum index using `find_cross_edge!`.
+2. If no such `e` is found then return.
+3. Merge the connected components containing the end-points.
+4. Goto 1.
+
+The sequential algorithm can be described as follows
+{% highlight julia %} 
+function find_cross_edge!(connected_vs, edge_list, start_ind = 1)
+    for ind in start_index:length(edge_list)
+        e = edge_list[ind]
+        if not_same_set!(connected_vs, e.src, e.dst)
+            return ind, e
+        end
+    end
+end
+{% endhighlight %}
+I wrote the parallel version roughly as:
+{% highlight julia %} 
+function parallel_find_cross_edge!(connected_vs, edge_list, local_start_ind = collect(1:nthreads()))
+    best_ind = length(edge_list)+1
+    @threads for thread_id in 1:nthreads()
+        i = local_start_ind[thread_id]
+
+        while i < best_ind 
+            e = edge_list[i]
+            if not_same_set!(connected_vs, e.src, e.dst)
+                local_start_ind[thread_id] = i
+                best_ind = min(best_ind, i)
+                break
+            end
+        end
+    end
+    return best_ind, edge_list[best_ind]
+end
+{% endhighlight %}
+Basically, thread `i` would only check the edges with indices {`i`, `i+nthreads()`,  `i+2*nthreads()` ....}.
+The caveat here is `connected_vs` is a [Disjoint Set DataStructure](https://ocw.mit.edu/courses/electrical-engineering-and-computer-science/6-046j-design-and-analysis-of-algorithms-spring-2015/recitation-notes/MIT6_046JS15_Recitation3.pdf) and `not_same_set!(connected_vs, e.src, e.dst)` requires read-write operations over common variables (so does `best_ind = min(best_ind, i)`). Hence we require atomic operations or local memory to make it thread safe. 
+
+In the local memory implementation, every thread is provided its own Disjoint Set DataStructure, `local_connected_vs` to make queries on. The "merge connected component" operation would have to be performed on of the `local_connected_vs`.
+
+### Results
+I benchmarked the parallel implementations against the sequential implementations on [Anubis](https://github.com/Keno/anubis.juliacomputing.io) using 10 threads. I used an input graph with 10^8 edges.
+Both implementations of `parallel_find_cross_edge` were at best 10x slower than sequential implementations.
+
+1. The issue with the implementation using **atomic operations** is atomic operations are **much** costlier than other operations (atleast 100x). In fact, I noticed that the run-time had an almost linear relationship with the number of atomic operations used.
+
+2. The issue with the implementation using **local memory** is queries to a [Disjoint Set DataStructure](https://ocw.mit.edu/courses/electrical-engineering-and-computer-science/6-046j-design-and-analysis-of-algorithms-spring-2015/recitation-notes/MIT6_046JS15_Recitation3.pdf) become faster with every subsequent use.
+By providing each thread with its own `local_connected_vs`, fewer queries were made on each data structure. Also, "merge connected component" operation would have to be performed on each of the `local_connected_vs`.
+
+## 4. Multi-threaded Centrality Measures
+These algorithms are of the form:
+{% highlight julia %}
+info = zeros(vertices(g)) 
+for v in vertex_list
+	dijk_info = dijkstra(v)
+	info += get_info(dijk_info)
+end
+return info
+{% endhighlight %} 
+They are easy parallelize as the Dijkstra can be run independently. But the addition of `info` must be done in a thread-safe manner.
+
+{% highlight julia %}
+local_info = [zeros(vertices(g)) for _ in 1:nthreads()] 
+@threads or v in vertex_list
+	dijk_info = dijkstra(v)
+	local_info[threadid()] += get_info(dijk_info)
+end
+return reduce(+, local_info)
+{% endhighlight %} 

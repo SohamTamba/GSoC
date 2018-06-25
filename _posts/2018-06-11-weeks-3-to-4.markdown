@@ -4,7 +4,7 @@ title:  "Weeks 3 to 4"
 date:   2018-06-12 14:10:51 +0530
 categories: GSoC
 tags: GSoC
-description: MAY-26-2018 to JUNE-11-2018.
+description: Parallel Floyd Warshsall APSP, Karger Min Cut, Parallel Bellman-Ford SP, Improved PRs.
 ---
 # Tasks completed in weeks 3 to 4
 
@@ -15,11 +15,11 @@ description: MAY-26-2018 to JUNE-11-2018.
 
 # Details
 
-## Polished Pull Requests on Greedy Heuristics
-Several changes were made to the two Pull Requests consisted of functions to solve to 8 different problems. For example, we decided to use Bit Arrays instead of Boolean Arrays. Boolean Arrays require more memory (8x) than Bit Arrays but have faster access time. However, when the number of entries increases and it longer becomes possible to fit the entire array in a cache line, bit arrays become much faster as the number of [cache misses](http://www.bowdoin.edu/~allen/courses/cs220/lab7/notes.html) decrease.
+## 1. Polished Pull Requests on Greedy Heuristics
+Several changes were made to the two Pull Requests consisted of functions to solve to 8 different problems. For example, we decided to use Bit Arrays instead of Boolean Arrays. Boolean Arrays require more memory (8x) than Bit Arrays but have faster access time. However, when the number of entries increases and it longer becomes possible to fit the entire array in a cache line, bit arrays become much faster as the number of [cache misses](http://www.bowdoin.edu/~allen/courses/cs220/lab7/notes.html) decrease. We also decided not to push Steiner Tree and Travelling Salesman into the `LightGraphs` repository as the two problems are only defined for complete graphs. The code will still be publicly available on my repository.
 
 
-## Parallel Floyd Warshall All Pairs Shortest Paths
+## 2. Parallel Floyd Warshall All Pairs Shortest Paths
 Floyd Warshall is an algorithm used to find the shortest path between all pairs of vertices in a 
 graph that does not have any negative weight edge cycles.
 
@@ -98,13 +98,13 @@ Hence the update.
 
 ---
 
-## Karger Global Minimum Cut algorithm
+## 3. Karger Global Minimum Cut algorithm
 This is a simple algorithm that can be described as follows:
 While there are more than two nodes in a graph, choose an edge at random and contract it.
 The 2 nodes represent the cut.
 I implemented this algorithm using the disjoint set datastructure.
 
-## Parallel Bellman Ford Shortest Paths
+## 4. Parallel Bellman Ford Shortest Paths
 Bellman Ford algorithm is used to find the shortest path from a single source in a 
 graph that does not have any negative weight edge cycles.
 
@@ -166,9 +166,9 @@ for repetition in vertices(g)
 end
 {% endhighlight %}
 
-In this implementation, every thread is provided its own variables.
+In this implementation, every thread is provided its own local memory (suffixed with `_t`) .
 
-In the multi-threaded loop, the local variables (`dists_t`, `parents_t` and `active_t`), are updated sequentially.
+In the multi-threaded loop, the local variables (`dists_t`, `parents_t` and `active_t`), are updated concurrently.
 
 In the next loop, the shared variables (`dists`, `parents` and `active`), are updated sequentially.
 
@@ -180,7 +180,7 @@ In the next loop, the shared variables (`dists`, `parents` and `active`), are up
 
 ---
 
-g = Undirected Facebook Combined Graph from [SNAP Datasets](https://github.com/JuliaGraphs/SNAPDatasets.jl):
+`g = loadsnap(:ego_twitter_d)` (\|V\| = 81306, \|E\| = 1342310)
 
 `seq_bellman_ford_shortest_paths(g, 1, d)`:   30.670 s (92897 allocations: 764.58 MiB)
 

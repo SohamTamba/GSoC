@@ -4,7 +4,7 @@ title:  "Weeks 1 to 2"
 date:   2018-05-26 14:10:51 +0800
 categories: GSoC
 tags: GSoC
-description: MAY-14-2018 to MAY-26-2018.
+description: Approximation Algorithms, Johnson APSP, Kruskal MST, Union-Find.
 ---
 # Tasks completed in weeks 1 to 2
 
@@ -17,13 +17,13 @@ description: MAY-14-2018 to MAY-26-2018.
   * Independent Vertex Set
   * Dominating Vertex Set
   * Local Node Connectivity
-2. Implemented Johnson's Shortest Path Algorithm.
+2. Implemented Johnson's All Pairs Shortest Path algorithm.
 3. Improved Run-time of Kruskal's Minimum Spanning Tree.
 4. Created the Union-Find data structure. 
 
 # Details
 
-### Approximation algorithms and Greedy Hueristics
+## 1. Approximation algorithms and Greedy Hueristics
 I implemented several straight forward approximation algorithms and greedy hueristics.
 I deviated from the proposal in the solution to Travelling Salesman because [Christofides algorithm](https://en.wikipedia.org/wiki/Christofides_algorithm) would require linear program solvers and LightGraphs has a policy of minimising dependencies.
 A common problem I faced while implementing the algorithms is, using a 'distributed for loop' would result in type instable code.
@@ -46,7 +46,7 @@ The solution is repeated `reps` times and the largest set is returned. If `paral
 
 It easy to see that both these algorithms will always return an independent set. It may not return the maximum independent set, but the returned independent set is always maximal. i.e. inserting any vertex into it will make it a non-independent set.
 
-### Johnson's Shortest Path Algorithm
+## 2. Johnson's Shortest Path Algorithm
 
 Implemented [Johnson's Shortest Path Algorithm](https://en.wikipedia.org/wiki/Johnson%27s_algorithm).
 This algorithms invloves applying a transform to the edge weights and then applying Dijkstra on each vertex. 
@@ -55,7 +55,7 @@ An additional |E| overhead will have to be incurred if the input includes immuta
 
 Eg. `johnson_shortest_paths(CompleteGraph(100), LowerTriangular(rand(100, 100))` would have resulted in an error because Lower Triangular Matrices are immutable.
 
-### Kruskal's Minimum Spanning Tree
+## 3. Kruskal's Minimum Spanning Tree
 `kruskal(g, distmx=weights(g))`
 In this program, we iterate over the edges of graph `g` in the ascending order of weights (stored in `distmx`) until a spanning tree is formed.
 A priority queue was being used to obtain the edge with the smallest weight.
@@ -84,7 +84,7 @@ end
 {% endhighlight %}
 
 
-### Union Find Data Structure
+## 4. Union Find Data Structure
 
 This data structure is already available in DataStructures.jl. I coded a version of it that would be optimised for graph algorithms that involve iteratively adding edges to the graph. The main difference is my implementation does not maintain ranks for each element. However, there was only a minor improvement in performance when I coded Kruskal's MST using my implementation of Union Find. Hence, maintaining this code in LightGraphs may not be worthwhile.
 
