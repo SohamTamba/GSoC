@@ -26,10 +26,12 @@ graph that does not have any negative weight edge cycles.
 The bottle neck portion of the algorithm can be descirbed roughly as:
 {% highlight julia %} 
 for pivot in vertices(g)
-    for (u, v) in vertices(g)*vertices(g)
-        if dists[u, v] > dists[u, pivot] + dists[pivot, v]
-            dists[u, v] = dists[u, pivot] + dists[pivot, v]
-            parents[u, v] = parents[pivot, v]
+    for u in vertices(g)
+        for v in vertices(g)
+            if dists[u, v] > dists[u, pivot] + dists[pivot, v]
+                dists[u, v] = dists[u, pivot] + dists[pivot, v]
+                parents[u, v] = parents[pivot, v]
+            end
         end
     end
 end
@@ -37,11 +39,15 @@ end
 I wrote the parallel version roughly as:
 {% highlight julia %} 
 for pivot in vertices(g)
-    @threads for (u, v) in vertices(g)*vertices(g)
-        if u != pivot && v != pivot
-            if dists[u, v] > dists[u, pivot] + dists[pivot, v]
-                dists[u, v] = dists[u, pivot] + dists[pivot, v]
-                parents[u, v] = parents[pivot, v]
+    @threads for u in vertices(g)
+        if u != pivot
+            for v in vertices(g)
+                v == pivot && continue
+                
+                if dists[u, v] > dists[u, pivot] + dists[pivot, v]
+                    dists[u, v] = dists[u, pivot] + dists[pivot, v]
+                    parents[u, v] = parents[pivot, v]
+                end
             end
         end
     end
@@ -70,31 +76,35 @@ Hence the update.
 
 ---
 
-`d = rand(-nv(g):nv(g), nv(g), nv(g))`
+`nthreads() = 4`
+
+---
+
+`distmx = rand(-nv(g):nv(g), nv(g), nv(g))`
 
 ---
 
 `g = random_regular_graph(1000, 10)`
 
-`seq_floyd_warshall_shortest_paths(g, d)`: 806.479 ms (5 allocations: 15.26 MiB)
+`seq_floyd_warshall_shortest_paths(g, distmx)`: 806.479 ms (5 allocations: 15.26 MiB)
 
-`parallel_floyd_warshall_shortest_paths(g, d)`: 592.930 ms (1005 allocations: 15.32 MiB)
+`parallel_floyd_warshall_shortest_paths(g, distmx)`: 592.930 ms (1005 allocations: 15.32 MiB)
 
 ---
 
 `g = random_regular_graph(2000, 20)`
 
-`seq_floyd_warshall_shortest_paths(g, d)`: 6.548 s (5 allocations: 61.04 MiB)
+`seq_floyd_warshall_shortest_paths(g, distmx)`: 6.548 s (5 allocations: 61.04 MiB)
 
-`parallel_floyd_warshall_shortest_paths(g, d)`: 4.997 s (2005 allocations: 61.16 MiB)
+`parallel_floyd_warshall_shortest_paths(g, distmx)`: 4.997 s (2005 allocations: 61.16 MiB)
 
 ---
 
 `g = random_regular_graph(3000, 30)`
 
-`seq_floyd_warshall_shortest_paths(g, d)`: 21.194 s (5 allocations: 137.33 MiB)
+`seq_floyd_warshall_shortest_paths(g, distmx)`: 21.194 s (5 allocations: 137.33 MiB)
 
-`parallel_floyd_warshall_shortest_paths(g, d)`: 16.924 s (3005 allocations: 137.51 MiB)  
+`parallel_floyd_warshall_shortest_paths(g, distmx)`: 16.924 s (3005 allocations: 137.51 MiB)  
 
 ---
 
@@ -148,7 +158,7 @@ function parallel_bellman_ford(g::AbstractGraph, src, distmx::AbstractMatrix)
 
     for _ in 1:nv(g)
 
-        # Update dists_t, active_t using dists, active
+        # Update dists_t, active_t using dists, active in parallel
         @threads for u in active
             local_dists = dists_t[threadid()]
             local_active = active_t[threadid()]
@@ -162,13 +172,15 @@ function parallel_bellman_ford(g::AbstractGraph, src, distmx::AbstractMatrix)
             end
         end
 
-        # Update dists, active using dists_t, active_t
+        # Update dists, active using dists_t, active_t in sequence
         for thread_id in 1:nthreads()
             local_dists = dists_t[thread_id]
             local_active = active_t[thread_id] 
 
             for v in local_active
-                dists[v] = min(dists[v], local_dists[v])
+                if local_dists[v] < dists[v]
+                    dists[v] = local_dists[v]
+                end
             end
         	empty!(local_active)
         end
@@ -187,34 +199,46 @@ In the next loop, the shared variables (`dists`, `parents` and `active`), are up
 
 ---
 
-`d = rand(-nv(g):nv(g), nv(g), nv(g))`
+`nthreads() = 4`
 
 ---
 
-`g = loadsnap(:ego_twitter_d)` (\|V\| = 81306, \|E\| = 1342310)
+`distmx = rand(-nv(g):nv(g), nv(g), nv(g))`
 
-`seq_bellman_ford_shortest_paths(g, 1, d)`:   30.670 s (92897 allocations: 764.58 MiB)
+---
 
-`parallel_bellman_ford_shortest_paths(g, 1, d)`:   22.544 s (298931 allocations: 3.04 GiB)
+`src = 1`
+
+---
+
+`g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310)
+
+`seq_bellman_ford_shortest_paths(g, src, distmx)`:   30.670 s (92897 allocations: 764.58 MiB)
+
+`parallel_bellman_ford_shortest_paths(g, src, distmx)`:   22.544 s (298931 allocations: 3.04 GiB)
 
 ---
 
 `g = CompleteGraph(1000)`
 
-`seq_bellman_ford_shortest_paths(g, 1, d)`:   34.048 s (18012 allocations: 48.46 MiB)
+`seq_bellman_ford_shortest_paths(g, src, distmx)`:   34.048 s (18012 allocations: 48.46 MiB)
 
-`parallel_bellman_ford_shortest_paths(g, 1, d)`:   10.983 s (69028 allocations: 196.66 MiB)
+`parallel_bellman_ford_shortest_paths(g, src, distmx)`:   10.983 s (69028 allocations: 196.66 MiB)
 
 ---
+
+This code scales well with respect to the number of cores when the graph is dense. However,
+the memory useage is proportional to the number of cores. Which is expected since every thread
+is being given its own memory.
 
 # Lessons Learned
  * Smaller Pull Requests: This makes your code and pull requests easier to maintain . Also you can detect your mistakes earlier and avoid making them in future codes.
 
- * Gather performance tips before coding: You may be unaware of the performance bugs existing and end up believing there is a flaw in the design rather than the implementation. When the documentation says a package is in the experimental stages, one should tread lightly. Eg. When using a multi-threaded loop `@threads for`, the code must be in the outer-most scope of the function.
+ * Gather performance tips before coding: You may be unaware of the performance bugs existing and end up believing there is a flaw in the design rather than the implementation. I should have figured that out when I notices `Base.Threads` is marked `Experimental`. Eg. when using a multi-threaded loop `@threads for`, the code must be in the outer-most scope of the function.
 
 {% highlight julia %}
 for pivot in vertices(g)
-    @threads for (u, v) in vertices(g)*vertices(g)
+    @threads for (u, v) Iterators.product(verties(g))
         DO SOMETHING
     end
 end
@@ -223,7 +247,7 @@ Must be written as:
 
 {% highlight julia %}
 function _loopbody!(g, pivot, dists, parents)
-	@threads for (u, v) in vertices(g)*vertices(g)
+	@threads for (u, v) in Iterators.product(verties(g))
         DO SOMETHING
     end
 

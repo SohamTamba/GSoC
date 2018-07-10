@@ -37,7 +37,7 @@ function seq_bellman_ford(g::AbstractGraph, src, distmx::AbstractMatrix)
             end
         end
         active = new_active
-        new_active = Set([])
+        is_empty(active) && break
     end
 end
 {% endhighlight %} 
@@ -59,18 +59,18 @@ function parallel_bellman_ford(g::AbstractGraph, src, distmx::AbstractMatrix)
                 relax_dist = prev_dists[u] + distmx[u,v])
                 if prev_dists[v] > relax_dist
                     prev_dists[v] = relax_dist
-                    parents[v] = u
                 end
             end
         end
 
+        empty!(active)
         for v in vertices(g) #Obtain new_active separately
             if dists[v] < prev_dists[v]
-                union!(new_active, v)
+                union!(active, v)
             end
         end
-        active = new_active
-        new_active = Set([])
+        is_empty(active) && break
+    end
 end
 {% endhighlight %} 
 
@@ -84,6 +84,10 @@ Thus, I made the multi-threaded loop thread-safe by operating on the in-edges in
 
 ---
 
+`src = 1`
+
+---
+
 `distmx = rand(-nv(g):nv(g), nv(g), nv(g))`
 
 ---
@@ -92,13 +96,16 @@ Thus, I made the multi-threaded loop thread-safe by operating on the in-edges in
 
 ---
 
-`seq_bellman_ford_shortest_paths(g, distmx, 1)`: 39.675 s (92898 allocations: 764.61 MiB)
+`seq_bellman_ford_shortest_paths(g, src, distmx)`: 39.675 s (92898 allocations: 764.61 MiB)
 
 ---
 
-`parallel_bellman_ford_shortest_paths(g, distmx, 1)`: 24.677 s (28290 allocations: 251.70 MiB)
+`parallel_bellman_ford_shortest_paths(g, src, distmx)`: 24.677 s (28290 allocations: 251.70 MiB)
 
 ---
+
+I also attempted to parallelise it using atomic operations. However, the run-time shot
+through the roof with this implementation
 
 ## 2. Parallel Pagerank
 The sequential code can be broadly described as:
@@ -136,9 +143,9 @@ function parallel_pagerank_1(g::AbstractGraph, α, n, ϵ)
                 xlast[v] += α * x[u] / outdegree(g, u)
             end
         end
-    end
 
-    DO SOMETHING
+        DO SOMETHING
+    end
 end
 {% endhighlight %}
 The implementation is perfectly thread-safe.
@@ -185,7 +192,7 @@ end
 ---
 ---
 
-`g = loadsnap(:ego_twitter_d)` (\|V\| = 81306, \|E\| = 1342310)
+`g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310)
 
 
 ---
@@ -218,10 +225,13 @@ I attempted to parallelize the `find_cross_edge` portion of the algorithm.
 i.e. given a set of connected components and an array of edges, find the edge with minimum index (In the edge list) whose end-points are in two different graphs.
 
 These implementations are meant for algorithms of the following format:
-1. Search for the cross-edge `e` of minimum index using `find_cross_edge!`.
-2. If no such `e` is found then return.
-3. Merge the connected components containing the end-points.
-4. Goto 1.
+1. Intialise each vertex to be in a separate connected component.
+2. Search for the cross-edge `e` of minimum index using `find_cross_edge!`.
+3. If no such `e` is found then return.
+4. Merge the connected components containing the end-points.
+5. Goto 2.
+
+The set of connected components of the graph are maintained using a Disjoint Set DataStructure.
 
 The sequential algorithm can be described as follows
 {% highlight julia %} 
@@ -244,17 +254,18 @@ function parallel_find_cross_edge!(connected_vs, edge_list, local_start_ind = co
         while i < best_ind 
             e = edge_list[i]
             if not_same_set!(connected_vs, e.src, e.dst)
-                local_start_ind[thread_id] = i
+                local_start_ind[thread_id] = i #Update local_start_ind for subsequent calls.
                 best_ind = min(best_ind, i)
                 break
             end
+            i += nthreads()
         end
     end
     return best_ind, edge_list[best_ind]
 end
 {% endhighlight %}
 Basically, thread `i` would only check the edges with indices {`i`, `i+nthreads()`,  `i+2*nthreads()` ....}.
-The caveat here is `connected_vs` is a [Disjoint Set DataStructure](https://ocw.mit.edu/courses/electrical-engineering-and-computer-science/6-046j-design-and-analysis-of-algorithms-spring-2015/recitation-notes/MIT6_046JS15_Recitation3.pdf) and `not_same_set!(connected_vs, e.src, e.dst)` requires read-write operations over common variables (so does `best_ind = min(best_ind, i)`). Hence we require atomic operations or local memory to make it thread safe. 
+The caveat here is `connected_vs` is a [Disjoint Set DataStructure](https://ocw.mit.edu/courses/electrical-engineering-and-computer-science/6-046j-design-and-analysis-of-algorithms-spring-2015/recitation-notes/MIT6_046JS15_Recitation3.pdf). Hence, `not_same_set!(connected_vs, e.src, e.dst)` requires read-write operations over common variables (so does `best_ind = min(best_ind, i)`). Hence we require atomic operations or local memory to make it thread safe. 
 
 In the local memory implementation, every thread is provided its own Disjoint Set DataStructure, `local_connected_vs` to make queries on. The "merge connected component" operation would have to be performed on of the `local_connected_vs`.
 
@@ -270,7 +281,7 @@ By providing each thread with its own `local_connected_vs`, fewer queries were m
 ## 4. Multi-threaded Centrality Measures
 These algorithms are of the form:
 {% highlight julia %}
-function centrality(g::AbstractGraph, vertex_list, distmx)
+function centrality(g::AbstractGraph, vertex_list, distmx::AbstractMatrix)
     info = zeros(vertices(g)) 
     for v in vertex_list
         dijk_info = dijkstra(g, v)
@@ -282,7 +293,7 @@ end
 They are easy parallelize as the Dijkstra can be run independently. But the addition of `info` must be done in a thread-safe manner.
 
 {% highlight julia %}
-function threaded_centrality(g::AbstractGraph, vertex_list, distmx)
+function threaded_centrality(g::AbstractGraph, vertex_list, distmx::AbstractMatrix)
     local_info = [zeros(vertices(g)) for _ in 1:nthreads()] 
     @threads for v in vertex_list
         dijk_info = dijkstra(g, v)

@@ -24,7 +24,7 @@ edges that have the same destination vertex.
 
 By balance, we mean to minimise that largest partition.
 
-I restricted the partitioning to contiguous partitions because the `p` partitions can be expressed in `p` integer ranges instead of `p` arrays that contain a total of `|V|` integers.
+I restricted the partitioning to contiguous partitions because the `num_part` partitions can be expressed in `num_part` integer ranges instead of `num_part` arrays that contain a total of `|V|` integers.
 
 I had used a `simple greedy heuristic` to partition the edges.
 
@@ -39,7 +39,7 @@ function greedy_partition(degree_list::Vector{Integer}, num_part::Int)
         right = left
         
         part_size = 0
-        current_balance = max(pat_size, suffix_sum[right+1]/part_remain)
+        current_balance = max(part_size, suffix_sum[right+1]/part_remain)
         
         next_part_size = degree_list[right+1]
         next_balance = max(next_part_size, suffix_sum[right+2]/part_remain)
@@ -56,6 +56,8 @@ function greedy_partition(degree_list::Vector{Integer}, num_part::Int)
         left = right + 1
     end
     push!(partitions, left:num)
+
+    return partitions
 end
 {% endhighlight %}
 
@@ -71,10 +73,10 @@ The basic idea is you can check if it is possible to partition the vertices such
 
 {% highlight julia %}
 function binary_search_it(degree_list::Vector{Int}, num_part, M)
+    possible = true
+
     sum_part = 0
     remain_part = num_part
-
-    possible = true
     for w in degree_list
         sum_part += w
         if sum_part > M #Transfer to next partition.
@@ -90,7 +92,9 @@ function binary_search_it(degree_list::Vector{Int}, num_part, M)
 end
 {% endhighlight %}
 
-`up_bound` can be set to `sum(degree_list)` and `low_bound` can be set to 0.
+`up_bound` can be set to `sum(degree_list)`.
+
+`low_bound` can be set to `fld(sum(degree_list), num_part)`.
 
 Each iteration requires `O(|V|)` time. 
 
@@ -100,7 +104,24 @@ This requries `O(|V|*log(|E|))` time which is not much costlier than the `O(|V|)
 
 However, when running both the partitioning functions on graphs from SNAPSDatasets.jl, I found that the partitions were very simillar and the balance did not differ.
 
-Using the optimal algorithm over the greedy algorithm for page rank on Ego Twitter Graph resulted in a minor increase in run-time. (65ms to 73ms)
+### Example
+
+---
+
+`g = loadsnap(:ego_twitter_u)`
+
+---
+
+`greedy_contiguous_partition(indegree(g), 4)`: [1:8055, 8056:22812, 22813:44295, 44296:81306]
+
+---
+
+`optimal_contiguous_partition(indegree(g), 4)`: [1:8055, 8056:22812, 22813:44297, 44298:81306]
+
+---
+
+Using the optimal algorithm over the greedy algorithm for page rank on Ego Twitter Graph resulted in a minor increase in run-time (65ms to 73ms). This was expected considering the partitions have almost
+no difference but the latter is costlier.
 
 ## 2. Batch Priority Queue
 
@@ -131,12 +152,12 @@ to independent priority queues.
 
 {% highlight julia %}
 function parallel_dijkstra(g::AbstractGraph, source, distmx::AbstractMatrix)
-	n_t = Base.Threads.nthreads()
-	nvg = nv(g)
+    n_t = Base.Threads.nthreads()
+    nvg = nv(g)
 
     dists = fill(typemax(eltype(g)), nv(g))
     dists[source] = 0
-    bpq = [ make_priorityqueue( [ (j, dists[i:nvg:n_t]) for j in 1:nvg:n_t ] for i in 1:n_t) ]
+    bpq = [ make_priorityqueue( [ (j, dists[i:nvg:n_t]) for j in 1:nvg:n_t ])    for i in 1:n_t) ]
 
     queue = [ Vector{eltype(g)}() for i in 1:n_t ]
 
@@ -190,7 +211,7 @@ when you dequeue a vertex from the priority queue.
 ### Benchmarks
 
 ---
-`g = loadsnap(:ego_twitter_d)` (|V| = 81306, |E| = 1342310)
+`g = loadsnap(:ego_twitter_u)` (|V| = 81306, |E| = 1342310)
 
 `distmx` = Sparse Matrix with random weights.
 
@@ -216,7 +237,7 @@ a `Transpose` (which is row-major) type matrix to represent the distance matrix.
 ### Benchmarks
 
 ---
-`g = loadsnap(:ego_twitter_d)` (|V| = 81306, |E| = 1342310)
+`g = loadsnap(:ego_twitter_u)` (|V| = 81306, |E| = 1342310)
 
 ---
 
@@ -230,7 +251,7 @@ a `Transpose` (which is row-major) type matrix to represent the distance matrix.
 
 ---
 
-### II. Collecting additional data.
+### II. optimise Collecting additional data.
 
 Dijkstra has some optional variables to collect more data than `dists` (and parents). For example, 
 `dijkstra_shortest_paths(g, allpaths=true)` will return a predecessor relation that can
@@ -304,7 +325,11 @@ I was able to obtain a speed up by re-using arrays. I simply replaced `preds[v] 
 ### Benchmarks
 
 ---
-`g = loadsnap(:ego_twitter_d)` (|V| = 81306, |E| = 1342310) 
+`src = 1`
+
+---
+
+`g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310) 
 
 ---
 
@@ -316,10 +341,10 @@ I was able to obtain a speed up by re-using arrays. I simply replaced `preds[v] 
 
 ---
 
-`old_dijkstra_shortest_paths`: 302.742 ms (522050 allocations: 47.43 MiB)
+`old_dijkstra_shortest_paths(g, src, distmx)`: 302.742 ms (522050 allocations: 47.43 MiB)
 
 ---
 
-`new_dijkstra_shortest_paths`: 265.332 ms (81397 allocations: 18.29 MiB)
+`new_dijkstra_shortest_paths(g, src, distmx)`: 265.332 ms (81397 allocations: 18.29 MiB)
 
 ---
