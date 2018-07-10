@@ -19,47 +19,60 @@ description: Parallel Bellman-Ford, Parallel Kruskal, Parallel Pagerank, Multi-t
 I was able to make athe algorithm thread-safe without using atomic operations or local memory.
 
 Replace:
-```
-for _ in 1:nv(g)
-    for u in active
-        for v in outneighbors(graph, u)
-            relax_dist = distmx[u, v] + dists[u]
-            if dists[v] > relax_dist 
-                dists[v] = relax_dist
-                parents[v] = u
+{% highlight julia %} 
+function seq_bellman_ford(g::AbstractGraph, src, distmx::AbstractMatrix)
+    dists = fill(typemax(eltype(g)), nv(g))
+    dists[src] = 0
+    active = Set([src])
+
+    for _ in 1:nv(g)
+        new_active = Set([])
+        for u in active
+            for v in outneighbors(graph, u)
+                relax_dist = distmx[u, v] + dists[u]
+                if dists[v] > relax_dist 
+                    dists[v] = relax_dist
+                    union!(new_active, v)
+                end
+            end
+        end
+        active = new_active
+        new_active = Set([])
+    end
+end
+{% endhighlight %} 
+
+With:
+
+{% highlight julia %} 
+function parallel_bellman_ford(g::AbstractGraph, src, distmx::AbstractMatrix)
+    dists = fill(typemax(eltype(g)), nv(g))
+    dists[src] = 0
+    active = Set([src])
+
+    for _ in 1:nv(g)
+        active = Set(outneighbors(g, active))
+        prev_dist = deepcopy(dists)
+
+        @threads for v in active
+            for u in inneighbors(g, v)
+                relax_dist = prev_dists[u] + distmx[u,v])
+                if prev_dists[v] > relax_dist
+                    prev_dists[v] = relax_dist
+                    parents[v] = u
+                end
+            end
+        end
+
+        for v in vertices(g) #Obtain new_active separately
+            if dists[v] < prev_dists[v]
                 union!(new_active, v)
             end
         end
-    end
-    active = new_active
-    new_active = Set([])
+        active = new_active
+        new_active = Set([])
 end
-```
-With:
-```
-for _ in 1:nv(g)
-    active = outneighbors(g, active)
-    prev_dist = deepcopy(dists)
-
-    @threads for v in active
-        for u in inneighbors(g, v)
-            relax_dist = prev_dists[u] + distmx[u,v])
-            if prev_dists[v] > relax_dist
-                prev_dists[v] = relax_dist
-                parents[v] = u
-            end
-        end
-    end
-
-    for v in vertices(g) #Obtain new_active separately
-        if dists[v] < prev_dists[v]
-            union!(new_active, v)
-        end
-    end
-    active = new_active
-    new_active = Set([])
-end
-```
+{% endhighlight %} 
 
 Thus, I made the multi-threaded loop thread-safe by operating on the in-edges instead of the out-edges. The trade-off is the code will likely end up iterating over more edges than necessary. i.e. Instead of iterating over `outneighbors(g, active)`, it will iterate over `inneighbors(g, outneighbors(g, active))`.
 
@@ -89,34 +102,39 @@ Thus, I made the multi-threaded loop thread-safe by operating on the in-edges in
 
 ## 2. Parallel Pagerank
 The sequential code can be broadly described as:
+
 {% highlight julia %}
-x = fill(1/nv(g), nv(g))
-x_last = fill(1/nv(g), nv(g))
-for _ in 1:num_iterations
-    DO SOMETHING
+function pagerank(g::AbstractGraph, α, n, ϵ)
+    x = fill(1/nv(g), nv(g))
+    x_last = fill(1/nv(g), nv(g))
+    for _ in 1:num_iterations
+        DO SOMETHING
 
-    for e in edges(g)
-        u, v = src(e), dst(e)
-        xlast[v] += α * x[u] / outdegree(g, u)
-        if !is_directed(g)
-            xlast[u] += α * x[v] / outdegree(g, v)
+        for e in edges(g)
+            u, v = src(e), dst(e)
+            xlast[v] += α * x[u] / outdegree(g, u)
+            if !is_directed(g)
+                xlast[u] += α * x[v] / outdegree(g, v)
+            end
         end
-    end
 
-    DO SOMETHING
+        DO SOMETHING
+    end
 end
 {% endhighlight %}
 
 My first attempt to parallelize the code was:
 {% highlight julia %}
-x = fill(1/nv(g), nv(g))
-x_last = fill(1/nv(g), nv(g))
-for _ in 1:num_iterations
-    DO SOMETHING
+function parallel_pagerank_1(g::AbstractGraph, α, n, ϵ)
+    x = fill(1/nv(g), nv(g))
+    x_last = fill(1/nv(g), nv(g))
+    for _ in 1:num_iterations
+        DO SOMETHING
 
-    @threads for v in vertices(g)
-        for u in inneighbors(g, v)
-            xlast[v] += α * x[u] / outdegree(g, u)
+        @threads for v in vertices(g)
+            for u in inneighbors(g, v)
+                xlast[v] += α * x[u] / outdegree(g, u)
+            end
         end
     end
 
@@ -139,22 +157,24 @@ Since the same iteration space is used multiple (`num_iterations`) times, it mig
 The problem of finding an optimal "load balanced" partition is NP-Hard (No polynomial time algorithm exists). I wrote a simple greedy heuristic to obtain a partition, `weighted_partition(weights, required_partitions)`.
 
 {% highlight julia %}
-partition = weighted_partition(indegree(g), nthreads())
+function parallel_pagerank(g::AbstractGraph, α, n, ϵ)
+    partition = weighted_partition(indegree(g), nthreads())
 
-x = fill(1/nv(g), nv(g))
-x_last = fill(1/nv(g), nv(g))
-for _ in 1:num_iterations
-    DO SOMETHING
+    x = fill(1/nv(g), nv(g))
+    x_last = fill(1/nv(g), nv(g))
+    for _ in 1:num_iterations
+        DO SOMETHING
 
-    @threads for v_set in partition
-        for v in v_set
-            for u in inneighbors(g, v)
-                xlast[v] += α * x[u] / outdegree(g, u)
+        @threads for v_set in partition
+            for v in v_set
+                for u in inneighbors(g, v)
+                    xlast[v] += α * x[u] / outdegree(g, u)
+                end
             end
         end
-    end
 
-    DO SOMETHING
+        DO SOMETHING
+    end
 end
 {% endhighlight %}
 
@@ -250,20 +270,27 @@ By providing each thread with its own `local_connected_vs`, fewer queries were m
 ## 4. Multi-threaded Centrality Measures
 These algorithms are of the form:
 {% highlight julia %}
-info = zeros(vertices(g)) 
-for v in vertex_list
-	dijk_info = dijkstra(v)
-	info += get_info(dijk_info)
+function centrality(g::AbstractGraph, vertex_list, distmx)
+    info = zeros(vertices(g)) 
+    for v in vertex_list
+        dijk_info = dijkstra(g, v)
+        info += get_info(dijk_info)
+    end
+    return info
 end
-return info
 {% endhighlight %} 
 They are easy parallelize as the Dijkstra can be run independently. But the addition of `info` must be done in a thread-safe manner.
 
 {% highlight julia %}
-local_info = [zeros(vertices(g)) for _ in 1:nthreads()] 
-@threads or v in vertex_list
-	dijk_info = dijkstra(v)
-	local_info[threadid()] += get_info(dijk_info)
+function threaded_centrality(g::AbstractGraph, vertex_list, distmx)
+    local_info = [zeros(vertices(g)) for _ in 1:nthreads()] 
+    @threads for v in vertex_list
+        dijk_info = dijkstra(g, v)
+        local_info[threadid()] += get_info(dijk_info)
+    end
+    return reduce(+, local_info)
 end
-return reduce(+, local_info)
 {% endhighlight %} 
+
+Although this created a significant speed up, the distributed implementations of centrality measures
+performed better.

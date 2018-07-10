@@ -109,62 +109,73 @@ Bellman Ford algorithm is used to find the shortest path from a single source in
 graph that does not have any negative weight edge cycles.
 
 
-The bottle neck portion of the algorithm:
-{% highlight julia %}
-active = Set(source) #Set does not allow duplicate elements.
-for repetition in vertices(g)
-    new_active = Set([])
-    for v in active
-        for u in outneighbors(g, v)
-            if dists[u] > dists[v] + edge_weight[v, u]
-                dists[u] > dists[v] + edge_weight[v, u]
-                parents[u] = v
-                push!(new_active, u)
+The code can be described as:
+
+{% highlight julia %} 
+function seq_bellman_ford(g::AbstractGraph, src, distmx::AbstractMatrix)
+    dists = fill(typemax(eltype(g)), nv(g))
+    dists[src] = 0
+    active = Set([src])
+
+    for _ in 1:nv(g)
+        new_active = Set([])
+        for u in active
+            for v in outneighbors(graph, u)
+                relax_dist = distmx[u, v] + dists[u]
+                if dists[v] > relax_dist 
+                    dists[v] = relax_dist
+                    union!(new_active, v)
+                end
             end
         end
+        active = new_active
+        new_active = Set([])
     end
-    active = new_active
 end
 {% endhighlight %}
 
-The parallel version:
-{% highlight julia %}
-active = Set(source) 
-for repetition in vertices(g)
-    
-    @threads for v in active
-        local_dists = dists_t[threadid()]
-        local_parents = parents_t[threadid()]
-        local_active = active_t[threadid()]
+The parallel version can be described as:
 
-        for u in outneighbors(g, v)
-            relax_dist = dists[v] + edge_weight[v, u]
-            if dists[u] > relax_dists && local_dists[u] > relax_dists
-                local_dists[u] = dists[v] + edge_weight[v, u]
-                local_parents[u] = v
-                push!(local_active, u)
+
+{% highlight julia %} 
+function parallel_bellman_ford(g::AbstractGraph, src, distmx::AbstractMatrix)
+    dists = fill(typemax(eltype(g)), nv(g))
+    dists[src] = 0
+    active = Set([src])
+
+    dists_t = [deepcopy(dists) for _ in 1:nthreads()]
+    active_t = [Set([]) for _ in 1:nthreads()]
+
+    for _ in 1:nv(g)
+
+        # Update dists_t, active_t using dists, active
+        @threads for u in active
+            local_dists = dists_t[threadid()]
+            local_active = active_t[threadid()]
+
+            for v in outneighbors(g, u)
+                relax_dist = dists[u] + distmx[u, v]
+                if dists[v] > relax_dists && local_dists[v] > relax_dists
+                    local_dists[u] = relax_dists
+                    push!(local_active, u)
+                end
             end
         end
-    end
 
+        # Update dists, active using dists_t, active_t
+        for thread_id in 1:nthreads()
+            local_dists = dists_t[thread_id]
+            local_active = active_t[thread_id] 
 
-    for i in 1:nthreads()
-        local_dists = dists_t[i]
-        local_parents = parents_t[i]
-        local_active = active_t[i] 
-
-        for v in local_active
-            if local_dists[v] < dists[v]
-                dists[v] = local_dists[v]
-                parents[v] = local_parents[v]
+            for v in local_active
+                dists[v] = min(dists[v], local_dists[v])
             end
+        	empty!(local_active)
         end
-        empty!(local_active)
+        active = reduce(union, active_t)
     end
-    active = reduce(union, active_t) #Combine all the active_t sets
-
 end
-{% endhighlight %}
+{% endhighlight %} 
 
 In this implementation, every thread is provided its own local memory (suffixed with `_t`) .
 
