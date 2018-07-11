@@ -121,7 +121,7 @@ However, when running both the partitioning functions on graphs from SNAPSDatase
 ---
 
 Using the optimal algorithm over the greedy algorithm for page rank on Ego Twitter Graph resulted in a minor increase in run-time (65ms to 73ms). This was expected considering the partitions have almost
-no difference but the latter is costlier.
+no difference but the latter is costlier. I decided to use `optimal_contiguous_partition` for `parallel_pagerank` because the run-time of `parallel_pagerank` is far larger than the run-time of partitioning.
 
 ## 2. Batch Priority Queue
 
