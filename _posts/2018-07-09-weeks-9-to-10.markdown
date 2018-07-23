@@ -1,0 +1,243 @@
+---
+layout: post
+title:  "Weeks 9 to 10"
+date:   2018-07-23 14:10:51 +0530
+categories: GSoC
+tags: GSoC
+description: Lock-free parallel BFS with static/dynamic load balancing, Merged Pull Requests, Explored max-flow algorithms.
+---
+# Tasks completed in weeks 7 to 8
+
+1. Merged Pull Requests.
+2. Explored max-flow algorithms.
+3. Implemented lock-free parallel Breadth-First Search with static load balancing.
+4. Implementing lock-free parallel Breadth-First Search with dynamic load balancing
+
+# Details
+
+## 1. Merged Pull Requests
+
+As we are nearing the end of GSoC, I have been spending more time getting the code mentioned
+in previous posts merged. This includes:
+
+1. Parallel Pagerank with degree based partitioning.
+2. Parallel Bellman Ford.
+3. Improved Dijkstra.
+4. Greedy Heuristics.
+
+We decided to break the Greedy Heuristics PR into smaller ones.
+Merging 20 different new functions is too troublesome.
+
+## 2. Explored Max-Flow Algorithms
+
+At the time of writing my proposal, I had intended to use atomic operations to produce parallel implementations of Max-Flow finding algorithms such as Edmund-Karp, Dinic and Push-Relabel. 
+From experiences explained in previous posts, I know that it would be impossible to obtain 
+an improvement in performance by relying on atomic operations.
+
+After discussing this with my mentor, we decided to move on to improving the performance of other core functionalities of LightGraphs.
+
+## 3. Lock-free parallel BFS with static load balancing
+
+BFS is used to find the minimum hop distance (Equivalent to distance with unweighted edges)
+from a source to all vertices in a graph.
+
+{% highlight julia %}
+function gdistances!(g::AbstractGraph{T}, sources) where T
+   
+    n = nv(g)
+    min_hop_dists = fill(n, typemax(T))
+
+    visited = falses(n)
+
+    cur_level = Vector{T}()
+    next_level = Vector{T}()
+
+    sizehint!(cur_level, n)
+    sizehint!(next_level, n)
+
+    @inbounds for s in sources
+        push!(cur_level, s)
+        vert_level[s] = zero(T)
+        visited[s] = true
+    end
+
+    #Actual BFS exploration
+    hop_dist = one(T)
+    while !isempty(cur_level)
+        @inbounds for v in cur_level
+            @inbounds @simd for i in outneighbors(g, v)
+                if !visited[i] # min_hop_dists[i] = typemax(T)
+                    push!(next_level, i)
+                    min_hop_dist[i] = hop_dist
+                    visited[i] = true
+                end
+            end
+        end
+        hop_dist += one(T)
+        empty!(cur_level)
+        cur_level, next_level = next_level, cur_level
+        sort!(cur_level) # For Cache Efficiency 
+    end
+    return vert_level
+end
+{% endhighlight %}
+
+As you can see, it explored the graph starting from the `sources` one level at a time.
+Vertices of level `L` is the set of vertices (of `g`) that have a minimum hop distance
+of `L` from `sources`. 
+
+In the parallel implementation, each thread its own `next_level` array.
+In each iteration of the graph exploration, `cur_level` is partitioned into
+`nthreads()` sets. Each thread `t` iterates over a vertex `v` in its own partition
+and explores `i` in `outneighbors(g, v)`. If `i` has not been explored yet (`!visited[i]`)   
+then the thread pushes `i` into `next_level_t[t]`.
+
+{% highlight julia %}
+
+function fast_partition!(num_items::Integer, part::Vector{UnitRange{T}}) where T<:Integer
+   
+
+    prefix_sum = 0
+    num = length(part)
+    for t in 1:num
+        left = prefix_sum
+        prefix_sum += div(num_items-1+t, num)
+        part[t] =  (left+1):prefix_sum
+    end
+
+end
+
+
+function parallel_gdistances(g::AbstractGraph{T}, source::Vector{T}) where T <:Integer
+ 
+    n::T = nv(g)
+    vert_level::Vector{T} = fill(typemax(T), n)
+
+    visited::BitArray{1} = falses(n)
+    old_visited::BitArray{1} = falses(n)
+
+    #Reallocation (push!) is not thread safe
+    next_level_t::Vector{Vector{T}} = [Vector{T}(undef, n+1) for _ in 1:nthreads()]
+    cur_level::Vector{T} = deepcopy(source)
+    sizehint!(cur_level, n)
+
+    for t in 1:nthreads()
+        next_level_t[t][1] = zero(T) # 0 is used to show end of queue
+    end
+
+    visited[source] .= true
+    old_visited[source] .= true
+    min_hop_dist[source] .= zero(T)
+
+    n_level::T = one(T)
+    partitions = Vector{UnitRange{T}}(undef, nthreads())
+
+
+    while !isempty(cur_level)
+        partition!(length(cur_level), partitions)
+        
+        @threads for ind_set in partitions
+            t = threadid()
+            @inbounds next_level::Vector{T} = next_level_t[t]
+            q_rear::T = zero(T) 
+            
+            @inbounds for ind in ind_set
+                v = cur_level[ind]
+                for i in outneighbors(g, v)
+                    if !visited[i]
+                        visited[i] = true # Race condition
+                        next_level[ q_rear+=one(T) ] = i
+                    end
+                end
+            end
+
+            @inbounds next_level[q_rear+one(T)] = zero(T)  
+        end
+
+        empty!(cur_level)
+        @inbounds for t in 1:nthreads()
+            Q::Vector{T} = next_level_t[t]
+
+            for v in Q
+                (v == zero(T)) && break
+                if !old_visited[v] 
+                    push!(cur_level, v)
+                    old_visited[v] = visited[v] = true
+                    min_hop_dist[v] = min(min_hop_dist[v], hop_dist)
+                end
+            end
+            Q[1] = zero(T)
+        end
+
+        hop_dist += one(T)
+    end
+
+    return vert_level
+end
+{% endhighlight %}
+
+Note that multiplie threads have read/write access to `visited`.
+However, a data race (Read/Write `true` as `false` or `false` as `true`) 
+would still guarentee correctness (But reduce performance).
+
+Usually, `visited` would be marked as volatile to reduce incorrect reads due
+to compiler optimisation (During compile-time code optimisation). 
+This functionality is currently not provided by Julia. It also appears to be 
+unnecessary.
+
+It would be possible to avoid data races by providing each thread its own `visited` bit vector.
+But that would reduce performance even more since a vertex that has been explored by one thread 
+during a level exploration will be considered unexplored by the other threads.
+
+### Benchmarks
+
+---
+`nthreads()` = 4
+
+---
+
+`sources` = [1,]
+
+---
+---
+
+`g = random_regular_graph(200000, 200)` (\|V\| = 200000, \|E\| = 40000000)
+
+---
+
+`gdistances(g, sources)`:  136.374 ms (9 allocations: 4.60 MiB)
+
+---
+
+`parallel_distances(g, sources)`:  88.375 ms (26 allocations: 9.20 MiB)
+
+
+---
+---
+
+`g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310)
+
+---
+
+`gdistances(g, sources)`:  13.086 ms (8 allocations: 1.87 MiB)
+
+---
+
+`parallel_distances(g, sources)`:  13.021 ms (27 allocations: 3.74 MiB)
+
+---
+
+
+## 4. Lock-free parallel BFS with dynamic load balancing
+
+This work is still in progress.
+
+The idea is, each thread will be provided its own `next_level` array as well as
+its own `cur_level` array. During each iteration of graph exploration,
+each thread `t` will first explore all the vertices in `cur_level_t[t]`.
+Once it is finished exploring the vertices in `cur_level_t[t]`, it will iterate over
+all the the `cur_level_t` and if it finds an array `cur_level_t[j]` that has unexplored vertices,
+it will remove some vertices in `cur_level_t[j]` and then explore them.
+
+The challenge here is to ensure correctness even when data races occur. 
+
