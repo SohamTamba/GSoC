@@ -238,31 +238,35 @@ a `Transpose` (which is row-major) type matrix to represent the distance matrix.
 
 ---
 `g = loadsnap(:ego_twitter_u)` (|V| = 81306, |E| = 1342310)
+`source = 1`
 
 ---
+---
 
-`distmx` of type `SparseMatrixCSC{Float64,Int64}`: 527.681 ms (292673 allocations: 32.86 MiB)
+`distmx` of type `SparseMatrixCSC{Float64,Int64}`
+`disjkstra_shortest_paths(g, source, distmx)` : 527.681 ms (292673 allocations: 32.86 MiB)
 
 ---
 
 `distmx` of type `Transpose{Float64,SparseArrays.SparseMatrixCSC{Float64,Int64}}`:
-
-259.203 ms (292673 allocations: 32.86 MiB)
+`disjkstra_shortest_paths(g, source, distmx)` : 259.203 ms (292673 allocations: 32.86 MiB)
 
 ---
 
-### II. optimise Collecting additional data.
+### II. Optimise Collecting additional data.
 
-Dijkstra has some optional variables to collect more data than `dists` (and parents). For example, 
+Dijkstra has some optional variables to collect data other than `dists` (and parents). For example, 
 `dijkstra_shortest_paths(g, allpaths=true)` will return a predecessor relation that can
 be used to find all the shortest paths from source to a particular vertex.
+
+For all `v` in `vertices(g)`, `preds[v] = [u in inneighbors(g) if dists[u]+distmx[u, v] == dists[v]]`
 
 My first attempt was to separate the additional data collection from the usual algorithm.
 Eg.
 
 I replaced
 {% highlight julia %}
-function dijkstra(g::AbstractGraph, source, distmx::AbstractMatrix)  # allpaths = true
+function dijkstra(g::AbstractGraph, source::Integer, distmx::AbstractMatrix)  # allpaths = true
     dists = fill(typemax(eltype(g)), nv(g))
     dists[source] = 0
     pq = make_priorityqueue(dists)
@@ -286,7 +290,7 @@ end
 {% endhighlight %}
 with
 {% highlight julia %}
-function dijkstra(g::AbstractGraph, source, distmx::AbstractMatrix) # allpaths = true
+function dijkstra(g::AbstractGraph, source::Integer, distmx::AbstractMatrix) # allpaths = true
     dists = fill(typemax(eltype(g)), nv(g))
     dists[source] = 0
     pq = make_priorityqueue(dists)
@@ -325,7 +329,7 @@ I was able to obtain a speed up by re-using arrays. I simply replaced `preds[v] 
 ### Benchmarks
 
 ---
-`src = 1`
+`source = 1`
 
 ---
 
@@ -341,10 +345,10 @@ I was able to obtain a speed up by re-using arrays. I simply replaced `preds[v] 
 
 ---
 
-`old_dijkstra_shortest_paths(g, src, distmx)`: 302.742 ms (522050 allocations: 47.43 MiB)
+`old_dijkstra_shortest_paths(g, source, distmx)`: 302.742 ms (522050 allocations: 47.43 MiB)
 
 ---
 
-`new_dijkstra_shortest_paths(g, src, distmx)`: 265.332 ms (81397 allocations: 18.29 MiB)
+`new_dijkstra_shortest_paths(g, source, distmx)`: 265.332 ms (81397 allocations: 18.29 MiB)
 
 ---

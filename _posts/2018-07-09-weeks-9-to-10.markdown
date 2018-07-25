@@ -4,21 +4,22 @@ title:  "Weeks 9 to 10"
 date:   2018-07-23 14:10:51 +0530
 categories: GSoC
 tags: GSoC
-description: Lock-free parallel BFS with static/dynamic load balancing, Merged Pull Requests, Explored max-flow algorithms.
+description: Optimistic Concurrency Control, Lock-free parallel BFS with static/dynamic load balancing, Merged Pull Requests, Explored max-flow algorithms.
 ---
-# Tasks completed in weeks 7 to 8
+# Tasks completed in weeks 9 to 10
 
 1. Merged Pull Requests.
 2. Explored max-flow algorithms.
-3. Implemented lock-free parallel Breadth-First Search with static load balancing.
-4. Implementing lock-free parallel Breadth-First Search with dynamic load balancing
+3. Explored Optimistic Concurrency Control
+4. Implemented lock-free parallel Breadth-First Search with static load balancing.
+5. WIP: Implementing lock-free parallel Breadth-First Search with dynamic load balancing
 
 # Details
 
 ## 1. Merged Pull Requests
 
 As we are nearing the end of GSoC, I have been spending more time getting the code mentioned
-in previous posts merged. This includes:
+in previous posts merged into the main LightGraphs repository. This includes:
 
 1. Parallel Pagerank with degree based partitioning.
 2. Parallel Bellman Ford.
@@ -36,13 +37,95 @@ an improvement in performance by relying on atomic operations.
 
 After discussing this with my mentor, we decided to move on to improving the performance of other core functionalities of LightGraphs.
 
-## 3. Lock-free parallel BFS with static load balancing
+## 3. Optimistic Concurrency Control
 
-BFS is used to find the minimum hop distance (Equivalent to distance with unweighted edges)
-from a source to all vertices in a graph.
+As we have mentioned the previous posts, if multiple processors have read/write or write/write
+access to common data, it can lead to unexpected results. As a result, we use locks or atomic
+instructions to maintain the correctness of the code. As mentioned in the above section (Explored 
+Max-Flow Algorithms), atomic operations and locks degrade the performance of the parallel code and we might end up with code that is slower than the sequential code.
+
+An approach to overcome this obstacle is to **allow data races** to occur and then recover from 
+them. i.e., maintain that the **correctness** of the code is **not affected** by the data races.
+I am considering the following data races while writing the code:
+
+1. Interleaving of Machine Level Instruction.
+2. Interleaving of Memory Read/Write.
+3. Compile Time Code Optimisation.
+
+---
+**Interleaving of Machine Level Instruction:** These are race conditions that can occur due to
+the fact that a single Julia instruction is broken into multiple machine level instructions 
+before execution. For example:
+
+Julia Instruction:
+
+Thread 1: `A += 1`
+
+Thread 2: `A += 1`
+
+Machine Level Instructions:
+
+Thread 1: 
+Read A into R_1
+Increment R_1
+Write R_1 into A
+
+
+Thread 2: 
+Read A into R_2
+Increment R_2
+Write R_2 into A
+
+The programmer may be expecting `A` to be incremented by `2` but find it incremented by `1`.
+Since the `A += 1` instruction is broken up into multiple instructions, it is possible 
+the first read instruction sets `R_1` and `R_2` to the same value (Initial value of `A`).
+
+---
+**Interleaving of Memory Read/Write:** If the data size is greater than the register size then
+read/write operations will be borken upto into multiple machine level read/write operations.
+
+For example, If variable `A` is of size `64-bit` and the register size is `32-bit` then a single Julia write on `A` will consist of two machine level writes as a single machine level write can change `32 bits`. 
+
+This should not be an issue because the register size of most computers is 64-bit.
+Some computers use 32-bit processors but even then, it is unheard of to use a common computer to process a graph with 2<sup>32</sup>-1 vertices, let alone 2<sup>64</sup>-1 vertices.
+
+Nevertheless, I will be considering this type of data race.
+
+---
+**Compile Time Code Optimisation:** During the code optimisation phase of compilation, the compiler
+may modify the code to improve performance without considering the effect of other threads
+modifying the data. For example,
 
 {% highlight julia %}
-function gdistances!(g::AbstractGraph{T}, sources) where T
+A = 1
+dists = zeros(Int64, n)
+for i in 1:length(dist)
+	dists[i] += A
+end
+{% endhighlight %}
+
+The compiler may modify this during compile time code optimisation as:
+
+{% highlight julia %}
+A = 1
+dists = zeros(Int64, n)
+for i in 1:length(dist)
+	dists[i] += 1
+end
+{% endhighlight %}
+
+Hence, none of the changes made to `A` by other threads will be noted.
+
+Some languages allow data to be marked as `volatile` to inform the compiler that 
+the data may be modified externally and the data must be accessed. 
+Julia does not have this functionality.
+
+## 4. Lock-free parallel BFS with static load balancing
+
+Breadth-First Search is used to find the minimum hop distance (Equivalent to distance with unweighted edges) from some sources to all vertices in a graph.
+
+{% highlight julia %}
+function gdistances!(g::AbstractGraph{T}, sources::Vector{<:Integer}) where T<:Integer
    
     n = nv(g)
     min_hop_dists = fill(n, typemax(T))
@@ -94,9 +177,8 @@ then the thread pushes `i` into `next_level_t[t]`.
 
 {% highlight julia %}
 
-function fast_partition!(num_items::Integer, part::Vector{UnitRange{T}}) where T<:Integer
-   
-
+function unweighted_fast_partition!(num_items::Integer, part::Vector{UnitRange{T}}) where T<:Integer
+  
     prefix_sum = 0
     num = length(part)
     for t in 1:num
@@ -107,8 +189,7 @@ function fast_partition!(num_items::Integer, part::Vector{UnitRange{T}}) where T
 
 end
 
-
-function parallel_gdistances(g::AbstractGraph{T}, source::Vector{T}) where T <:Integer
+function parallel_gdistances(g::AbstractGraph{T}, sources::Vector{<:Integer}) where T <:Integer
  
     n::T = nv(g)
     vert_level::Vector{T} = fill(typemax(T), n)
@@ -134,7 +215,7 @@ function parallel_gdistances(g::AbstractGraph{T}, source::Vector{T}) where T <:I
 
 
     while !isempty(cur_level)
-        partition!(length(cur_level), partitions)
+        unweighted_fast_partition!(length(cur_level), partitions)
         
         @threads for ind_set in partitions
             t = threadid()
@@ -176,18 +257,16 @@ function parallel_gdistances(g::AbstractGraph{T}, source::Vector{T}) where T <:I
 end
 {% endhighlight %}
 
-Note that multiplie threads have read/write access to `visited`.
-However, a data race (Read/Write `true` as `false` or `false` as `true`) 
-would still guarentee correctness (But reduce performance).
+#### Data Race on `visited`
 
-Usually, `visited` would be marked as volatile to reduce incorrect reads due
-to compiler optimisation (During compile-time code optimisation). 
-This functionality is currently not provided by Julia. It also appears to be 
-unnecessary.
+Multiple threads have read/write access to `visited::BitArray{1}`.
+Hence, it is possible that during a level exploration, multiple threads could have pushed
+the same vertex `i` into their queue. That could lead to exploring `i` but it obviously
+does not affect the correctness of the code.
 
 It would be possible to avoid data races by providing each thread its own `visited` bit vector.
-But that would reduce performance even more since a vertex that has been explored by one thread 
-during a level exploration will be considered unexplored by the other threads.
+But that would only reduce performance even more since a vertex that has been explored by one thread 
+during a level exploration **will** be considered unexplored by the other threads.
 
 ### Benchmarks
 
@@ -201,7 +280,7 @@ during a level exploration will be considered unexplored by the other threads.
 ---
 ---
 
-`g = random_regular_graph(200000, 200)` (\|V\| = 200000, \|E\| = 40000000)
+`g = random_regular_graph(200000, 400)` (\|V\| = 200000, \|E\| = 40000000)
 
 ---
 
@@ -227,10 +306,44 @@ during a level exploration will be considered unexplored by the other threads.
 
 ---
 
+As you can see, BFS on `g = random_regular_graph(200000, 400)` obtained a good speed up while BFS on
+`g = loadsnap(:ego_twitter_u)` showed a negligible speed up. This is likely because the `random_regular_graph` had
+better partitioning.
 
-## 4. Lock-free parallel BFS with dynamic load balancing
+## 5. Lock-free parallel BFS with dynamic load balancing
 
-This work is still in progress.
+#### Why use Dynamic Loading Balancing?
+
+If you can recall the `parallel_page_rank` code I obtained a good performance improvement
+ using `optimal_weighted_partition` to statically partition.
+
+Using `greedy_weighted_partition` or `optimal_weighted_partition` only increased the run-time
+of the static load balanced parallel BFS code presented in the previous section.
+
+There are two reasons we cannot use the same strategy.
+
+*Firstly*, BFS is a linear time algorithm. If partitioning `cur_level` at the beginning of 
+each graph graph exploration phase takes alot of time then we will not obtain any speed up.
+
+*Secondly*, Unlike Page Rank, it is impossible to efficiently estimate the time required to 
+iterate over the edges of the vertex. In the page rank algorithm, the time taken to iterate over an edge is more or less constant as the same instructions are executed.
+
+Consider the following block of code:
+
+{% highlight julia %}
+    @inbounds @simd for i in outneighbors(g, v)
+        if !visited[i] # min_hop_dists[i] = typemax(T)
+            push!(next_level, i)
+            min_hop_dist[i] = hop_dist
+            visited[i] = true
+        end
+   	end
+{% endhighlight %}
+
+If `visited[i]` is `true` then the time taken to iterate over edge `u -> i` is much lesser
+than what it would have been if `visited[i]` is `false`.
+
+#### Broad strategy
 
 The idea is, each thread will be provided its own `next_level` array as well as
 its own `cur_level` array. During each iteration of graph exploration,
@@ -239,5 +352,5 @@ Once it is finished exploring the vertices in `cur_level_t[t]`, it will iterate 
 all the the `cur_level_t` and if it finds an array `cur_level_t[j]` that has unexplored vertices,
 it will remove some vertices in `cur_level_t[j]` and then explore them.
 
-The challenge here is to ensure correctness even when data races occur. 
-
+I will be refering to the BFS<sub>CL</sub> algorithm presented in the paper title
+[Avoiding Locks and Atomic Instructions in Shared-Memory Parallel BFS Using Optimistic Parallelization](https://www.computer.org/csdl/proceedings/ipdpsw/2013/4979/00/4979b628-abs.html).
