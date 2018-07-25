@@ -66,15 +66,22 @@ Thread 2: `A += 1`
 Machine Level Instructions:
 
 Thread 1: 
+```
 Read A into R_1
-Increment R_1
-Write R_1 into A
 
+Increment R_1
+
+Write R_1 into A
+```
 
 Thread 2: 
+```
 Read A into R_2
+
 Increment R_2
+
 Write R_2 into A
+```
 
 The programmer may be expecting `A` to be incremented by `2` but find it incremented by `1`.
 Since the `A += 1` instruction is broken up into multiple instructions, it is possible 
@@ -85,6 +92,33 @@ the first read instruction sets `R_1` and `R_2` to the same value (Initial value
 read/write operations will be borken upto into multiple machine level read/write operations.
 
 For example, If variable `A` is of size `64-bit` and the register size is `32-bit` then a single Julia write on `A` will consist of two machine level writes as a single machine level write can change `32 bits`. 
+
+Consider a machine with 8 bit registers.
+
+Julia Instructions:
+
+Thread 1: ```R_1 = 0xFFFF```
+
+Thread 2: ```R_1 = 0x0000```
+
+Machine Level Instructions:
+
+Thread 1:
+```
+R_1[1] = 0xFF
+
+R_1[2] = 0xFF
+```
+
+Thread 2:
+```
+R_1[1] = 0x00
+
+R_1[2] = 0x00
+```
+
+The programmer may expect `R_1` to have the value `0xFFFF` or `0x0000` but the interleaving
+of the instructions could leave it to also have the value `0xFF00` or `0x00FF`.
 
 This should not be an issue because the register size of most computers is 64-bit.
 Some computers use 32-bit processors but even then, it is unheard of to use a common computer to process a graph with 2<sup>32</sup>-1 vertices, let alone 2<sup>64</sup>-1 vertices.
@@ -169,11 +203,12 @@ As you can see, it explored the graph starting from the `sources` one level at a
 Vertices of level `L` is the set of vertices (of `g`) that have a minimum hop distance
 of `L` from `sources`. 
 
-In the parallel implementation, each thread its own `next_level` array.
+In the parallel implementation, each thread `t` its own `next_level` array (`next_level_t[t]`).
 In each iteration of the graph exploration, `cur_level` is partitioned into
-`nthreads()` sets. Each thread `t` iterates over a vertex `v` in its own partition
-and explores `i` in `outneighbors(g, v)`. If `i` has not been explored yet (`!visited[i]`)   
-then the thread pushes `i` into `next_level_t[t]`.
+`nthreads()` sets. 
+
+Each thread `t` iterates over a vertex `v` in its own partition
+and explores `i` in `outneighbors(g, v)`. If `i` has not been explored yet (`!visited[i]`) then the thread pushes `i` into `next_level_t[t]`.
 
 {% highlight julia %}
 
@@ -257,25 +292,44 @@ function parallel_gdistances(g::AbstractGraph{T}, sources::Vector{<:Integer}) wh
 end
 {% endhighlight %}
 
-#### Data Race on `visited`
+#### **Data Race on visited**
 
 Multiple threads have read/write access to `visited::BitArray{1}`.
 Hence, it is possible that during a level exploration, multiple threads could have pushed
 the same vertex `i` into their queue. That could lead to exploring `i` but it obviously
 does not affect the correctness of the code.
 
-It would be possible to avoid data races by providing each thread its own `visited` bit vector.
+{% highlight julia %}
+for i in outneighbors(g, v)
+    if !visited[i]
+        visited[i] = true # Race condition
+        next_level[ q_rear+=one(T) ] = i
+    end
+end
+{% endhighlight %}
+
+**It is easy to see that:** The first time in the program the statement `if visited[i]` is being
+executed (For any `i` in `vertices(g)`), a write operation on `visited[i]` cannot be occuring
+concurrently. 
+
+This is because the statement `visited[i] = true` occurs after the `if`
+statement. The statement `min_hop_dist[v] = min(min_hop_dist[v], hop_dist)` ensure that
+`min_hop_dist[v]` has the correct value even if the state `if` block is executed at a later level.
+
+From the above statement it is easy to prove that `min_hop_dist[i]` will be correct at the end of the program, regardless of any race-conditions occuring on `visited[i]`.
+
+It is possible to avoid data races by providing each thread its own `visited` bit vector.
 But that would only reduce performance even more since a vertex that has been explored by one thread 
 during a level exploration **will** be considered unexplored by the other threads.
 
 ### Benchmarks
 
 ---
-`nthreads()` = 4
+`nthreads() = 4`
 
 ---
 
-`sources` = [1,]
+`sources = [1,]`
 
 ---
 ---
@@ -312,18 +366,19 @@ better partitioning.
 
 ## 5. Lock-free parallel BFS with dynamic load balancing
 
-#### Why use Dynamic Loading Balancing?
+
+### *Why use Dynamic Loading Balancing?*
+
 
 If you can recall the `parallel_page_rank` code I obtained a good performance improvement
- using `optimal_weighted_partition` to statically partition.
+ using `optimal_weighted_partition` to statically partition `vertices(g)`.
 
 Using `greedy_weighted_partition` or `optimal_weighted_partition` only increased the run-time
 of the static load balanced parallel BFS code presented in the previous section.
 
 There are two reasons we cannot use the same strategy.
 
-*Firstly*, BFS is a linear time algorithm. If partitioning `cur_level` at the beginning of 
-each graph graph exploration phase takes alot of time then we will not obtain any speed up.
+*Firstly*, BFS is a linear time algorithm and each iteration will need to be partitioned. If partitioning `cur_level` at the beginning of each graph graph exploration phase takes alot of time then we will not obtain any speed up.
 
 *Secondly*, Unlike Page Rank, it is impossible to efficiently estimate the time required to 
 iterate over the edges of the vertex. In the page rank algorithm, the time taken to iterate over an edge is more or less constant as the same instructions are executed.
@@ -331,22 +386,23 @@ iterate over the edges of the vertex. In the page rank algorithm, the time taken
 Consider the following block of code:
 
 {% highlight julia %}
-    @inbounds @simd for i in outneighbors(g, v)
-        if !visited[i] # min_hop_dists[i] = typemax(T)
-            push!(next_level, i)
-            min_hop_dist[i] = hop_dist
-            visited[i] = true
-        end
-   	end
+@inbounds @simd for i in outneighbors(g, v)
+    if !visited[i] # min_hop_dists[i] = typemax(T)
+        push!(next_level, i)
+        min_hop_dist[i] = hop_dist
+        visited[i] = true
+    end
+end
 {% endhighlight %}
 
 If `visited[i]` is `true` then the time taken to iterate over edge `u -> i` is much lesser
 than what it would have been if `visited[i]` is `false`.
 
-#### Broad strategy
 
-The idea is, each thread will be provided its own `next_level` array as well as
-its own `cur_level` array. During each iteration of graph exploration,
+### *Broad strategy*
+
+
+The idea is, each thread `t` will be provided its own `cur_level` array (`cur_level_t[t]`) as well as its own `next_level` array. During each iteration of graph exploration,
 each thread `t` will first explore all the vertices in `cur_level_t[t]`.
 Once it is finished exploring the vertices in `cur_level_t[t]`, it will iterate over
 all the the `cur_level_t` and if it finds an array `cur_level_t[j]` that has unexplored vertices,
