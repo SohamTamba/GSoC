@@ -45,8 +45,11 @@ instructions to maintain the correctness of the code. As mentioned in the above 
 Max-Flow Algorithms), atomic operations and locks degrade the performance of the parallel code and we might end up with code that is slower than the sequential code.
 
 An approach to overcome this obstacle is to **allow data races** to occur and then recover from 
-them. i.e., maintain that the **correctness** of the code is **not affected** by the data races.
-I am considering the following data races while writing the code:
+them. i.e., maintain that the **correctness** of the code is **not affected** by the data races
+but data races will usually decrease the performance of the program. Hence, when data races are
+rare, it can obtain good performance.
+
+### Examples of Race Conditions
 
 1. Interleaving of Machine Level Instruction.
 2. Interleaving of Memory Read/Write.
@@ -154,6 +157,52 @@ Some languages allow data to be marked as `volatile` to inform the compiler that
 the data may be modified externally and the data must be accessed. 
 Julia does not have this functionality.
 
+### Assumptions
+
+The **main assumption** I will be making while writing code using optimistic concurrency 
+control are:
+
+**I.** If multiple threads write the same value into a variable then at the end of the threaded loop, the variable will have the common value.
+
+For example:
+
+{% highlight julia %}
+A = zeros(Int64, 100)
+indices = rand(1:100, 1000)
+@threads for i in indices
+    A[i] = 1
+end
+{% endhighlight %}
+If `i` in `indices` then at the end of the loop `A[i] = 1`.
+
+If `i` in `indices` then at the end of the loop `A[i] = 0`.
+
+This is a reasonable assumption because the programmer always expects the changes made
+in the threaded loop to be present after the threaded has been exited.
+
+**II.** If multiple threads have read/write access to a variable and the first read before
+preceeds the first write ever then the first read will obtain the correct value.
+
+For example:
+
+{% highlight julia %}
+atleast_one_in = false
+is_in_if = falses(nthreads())
+@threads for thread in 1:nthreads()
+    if !atleast_one_in
+        atleast_one_in = true
+        is_in_if[thread] = true
+    end
+end
+{% endhighlight %}
+
+At the end of the loop, at least one entries in `is_in_if` will be set to true.
+This is due to the fact that the first thread to have executed the `if !atleast_one_in`
+had performed READ on `atleast_one_in` while no concurrent WRITE was taking place.
+
+This is a reasonable assumption because the programmer always expects a READ operation to 
+succeed when a WRITE operation is not occuring concurrently.
+
 ## 4. Lock-free parallel BFS with static load balancing
 
 Breadth-First Search is used to find the minimum hop distance (Equivalent to distance with unweighted edges) from some sources to all vertices in a graph.
@@ -162,7 +211,7 @@ Breadth-First Search is used to find the minimum hop distance (Equivalent to dis
 function gdistances!(g::AbstractGraph{T}, sources::Vector{<:Integer}) where T<:Integer
    
     n = nv(g)
-    min_hop_dists = fill(n, typemax(T))
+    vert_level = fill(n, typemax(T)) # Minimum Hop Distances
 
     visited = falses(n)
 
@@ -178,19 +227,18 @@ function gdistances!(g::AbstractGraph{T}, sources::Vector{<:Integer}) where T<:I
         visited[s] = true
     end
 
-    #Actual BFS exploration
-    hop_dist = one(T)
+    n_level = one(T) # The level being explored 
     while !isempty(cur_level)
         @inbounds for v in cur_level
             @inbounds @simd for i in outneighbors(g, v)
-                if !visited[i] # min_hop_dists[i] = typemax(T)
+                if !visited[i] # vert_level[i] = typemax(T)
                     push!(next_level, i)
-                    min_hop_dist[i] = hop_dist
+                    vert_level[i] = n_level
                     visited[i] = true
                 end
             end
         end
-        hop_dist += one(T)
+        n_level += one(T)
         empty!(cur_level)
         cur_level, next_level = next_level, cur_level
         sort!(cur_level) # For Cache Efficiency 
@@ -202,6 +250,10 @@ end
 As you can see, it explored the graph starting from the `sources` one level at a time.
 Vertices of level `L` is the set of vertices (of `g`) that have a minimum hop distance
 of `L` from `sources`. 
+
+
+I thought optimistic concurrency control would be a good way to implement this algorithm because
+most graphs are sparse. Hence, the number of data races would be less.
 
 In the parallel implementation, each thread `t` its own `next_level` array (`next_level_t[t]`).
 In each iteration of the graph exploration, `cur_level` is partitioned into
@@ -224,38 +276,41 @@ function unweighted_fast_partition!(num_items::Integer, part::Vector{UnitRange{T
 
 end
 
-function parallel_gdistances(g::AbstractGraph{T}, sources::Vector{<:Integer}) where T <:Integer
+function parallel_gdistances_2!(
+    g::AbstractGraph{T}, 
+    source::Vector{<:Integer}
+    ) where T <:Integer
  
-    n::T = nv(g)
-    vert_level::Vector{T} = fill(typemax(T), n)
+    n = nv(g)
 
-    visited::BitArray{1} = falses(n)
-    old_visited::BitArray{1} = falses(n)
+    visited = falses(n)
+    old_visited = falses(n)
+    vert_level = fill(typemax(T), n)
 
-    #Reallocation (push!) is not thread safe
-    next_level_t::Vector{Vector{T}} = [Vector{T}(undef, n+1) for _ in 1:nthreads()]
-    cur_level::Vector{T} = deepcopy(source)
+    next_level_t = [Vector{T}(undef, n+1) for _ in 1:nthreads()]
+    vert_level = fill(typemax(T), n)
+    cur_level = deepcopy(source)
     sizehint!(cur_level, n)
 
     for t in 1:nthreads()
-        next_level_t[t][1] = zero(T) # 0 is used to show end of queue
+        next_level_t[t][1] = zero(T)
     end
 
-    visited[source] .= true
-    old_visited[source] .= true
-    min_hop_dist[source] .= zero(T)
+    for s in source
+        visited[s] = old_visited[s] = true
+        vert_level[s] = zero(T)
+    end
 
-    n_level::T = one(T)
+    n_level = one(T)
     partitions = Vector{UnitRange{T}}(undef, nthreads())
 
-
     while !isempty(cur_level)
-        unweighted_fast_partition!(length(cur_level), partitions)
+        unweighted_partition!(partitions, length(cur_level))
         
         @threads for ind_set in partitions
             t = threadid()
-            @inbounds next_level::Vector{T} = next_level_t[t]
-            q_rear::T = zero(T) 
+            @inbounds next_level = next_level_t[t]
+            q_rear = zero(T) 
             
             @inbounds for ind in ind_set
                 v = cur_level[ind]
@@ -272,20 +327,23 @@ function parallel_gdistances(g::AbstractGraph{T}, sources::Vector{<:Integer}) wh
 
         empty!(cur_level)
         @inbounds for t in 1:nthreads()
-            Q::Vector{T} = next_level_t[t]
+            Q = next_level_t[t]
 
             for v in Q
                 (v == zero(T)) && break
                 if !old_visited[v] 
                     push!(cur_level, v)
                     old_visited[v] = visited[v] = true
-                    min_hop_dist[v] = min(min_hop_dist[v], hop_dist)
+                    vert_level[v] = min(vert_level[v], n_level)
                 end
             end
             Q[1] = zero(T)
         end
 
-        hop_dist += one(T)
+
+        n_level += one(T)
+       sort!(cur_level, alg = QuickSort)
+
     end
 
     return vert_level
@@ -310,13 +368,9 @@ end
 
 **It is easy to see that:** The first time in the program the statement `if visited[i]` is being
 executed (For any `i` in `vertices(g)`), a write operation on `visited[i]` cannot be occuring
-concurrently. 
+concurrently. This is due to the direct consequence of `assumption II` in section **Optimistic Concurrency Control**.
 
-This is because the statement `visited[i] = true` occurs after the `if`
-statement. The statement `min_hop_dist[v] = min(min_hop_dist[v], hop_dist)` ensure that
-`min_hop_dist[v]` has the correct value even if the state `if` block is executed at a later level.
-
-From the above statement it is easy to prove that `min_hop_dist[i]` will be correct at the end of the program, regardless of any race-conditions occuring on `visited[i]`.
+From the above statement it is easy to prove that `vert_level[i]` will be correct at the end of the program, regardless of any race-conditions occuring on `visited[i]`.
 
 It is possible to avoid data races by providing each thread its own `visited` bit vector.
 But that would only reduce performance even more since a vertex that has been explored by one thread 
@@ -338,31 +392,31 @@ during a level exploration **will** be considered unexplored by the other thread
 
 ---
 
-`gdistances(g, sources)`:  136.374 ms (9 allocations: 4.60 MiB)
+`gdistances(g, sources)`:  136.482 ms (9 allocations: 4.60 MiB)
 
 ---
 
-`parallel_distances(g, sources)`:  88.375 ms (26 allocations: 9.20 MiB)
-
+`parallel_distances(g, sources)`:  90.917 ms (28 allocations: 10.73 MiB)
 
 ---
 ---
+  
+--------------------Parallel GDistances------------------------------
 
 `g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310)
 
 ---
 
-`gdistances(g, sources)`:  13.086 ms (8 allocations: 1.87 MiB)
+`gdistances(g, sources)`:  13.190 ms (8 allocations: 1.87 MiB)
 
 ---
 
-`parallel_distances(g, sources)`:  13.021 ms (27 allocations: 3.74 MiB)
+`parallel_distances(g, sources)`:  13.645 ms (29 allocations: 4.36 MiB)
 
 ---
 
 As you can see, BFS on `g = random_regular_graph(200000, 400)` obtained a good speed up while BFS on
-`g = loadsnap(:ego_twitter_u)` showed a negligible speed up. This is likely because the `random_regular_graph` had
-better partitioning.
+`g = loadsnap(:ego_twitter_u)` showed a negligible slow down. This is likely because the `random_regular_graph` had better partitioning.
 
 ## 5. Lock-free parallel BFS with dynamic load balancing
 
@@ -387,9 +441,9 @@ Consider the following block of code:
 
 {% highlight julia %}
 @inbounds @simd for i in outneighbors(g, v)
-    if !visited[i] # min_hop_dists[i] = typemax(T)
+    if !visited[i] # vert_level[i] = typemax(T)
         push!(next_level, i)
-        min_hop_dist[i] = hop_dist
+        vert_level[i] = n_level
         visited[i] = true
     end
 end
@@ -398,9 +452,7 @@ end
 If `visited[i]` is `true` then the time taken to iterate over edge `u -> i` is much lesser
 than what it would have been if `visited[i]` is `false`.
 
-
 ### *Broad strategy*
-
 
 The idea is, each thread `t` will be provided its own `cur_level` array (`cur_level_t[t]`) as well as its own `next_level` array. During each iteration of graph exploration,
 each thread `t` will first explore all the vertices in `cur_level_t[t]`.
