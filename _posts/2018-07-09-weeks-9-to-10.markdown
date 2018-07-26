@@ -162,25 +162,7 @@ Julia does not have this functionality.
 The **main assumption** I will be making while writing code using optimistic concurrency 
 control are:
 
-**I.** If multiple threads write the same value into a variable then at the end of the threaded loop, the variable will have the common value.
-
-For example:
-
-{% highlight julia %}
-A = zeros(Int64, 100)
-indices = rand(1:100, 1000)
-@threads for i in indices
-    A[i] = 1
-end
-{% endhighlight %}
-If `i` in `indices` then at the end of the loop `A[i] = 1`.
-
-If `i` in `indices` then at the end of the loop `A[i] = 0`.
-
-This is a reasonable assumption because the programmer always expects the changes made
-in the threaded loop to be present after the threaded has been exited.
-
-**II.** If multiple threads have read/write access to a variable and the first read before
+**I.** If multiple threads have read/write access to a variable and the first read before
 preceeds the first write ever then the first read will obtain the correct value.
 
 For example:
@@ -202,6 +184,26 @@ had performed READ on `atleast_one_in` while no concurrent WRITE was taking plac
 
 This is a reasonable assumption because the programmer always expects a READ operation to 
 succeed when a WRITE operation is not occuring concurrently.
+
+**II.** If multiple threads write the same value into a variable then at the end of the threaded loop, the variable will have the common value.
+
+For example:
+
+{% highlight julia %}
+A = zeros(Int64, 100)
+indices = rand(1:100, 1000)
+@threads for i in indices
+    A[i] = 1
+end
+{% endhighlight %}
+If `i` in `indices` then at the end of the loop `A[i] = 1`.
+
+If `i` in `indices` then at the end of the loop `A[i] = 0`.
+
+This is a reasonable assumption because the programmer always expects the changes made
+in the threaded loop to be present after the threaded has been exited. I also discussed
+this with the members of Julia's parallel group. This assumption will be used in dynamic load
+balancing solely to reduce the degradation of the program's performance when a data race occurs.
 
 ## 4. Lock-free parallel BFS with static load balancing
 
@@ -368,7 +370,7 @@ end
 
 **It is easy to see that:** The first time in the program the statement `if visited[i]` is being
 executed (For any `i` in `vertices(g)`), a write operation on `visited[i]` cannot be occuring
-concurrently. This is due to the direct consequence of `assumption II` in section **Optimistic Concurrency Control**.
+concurrently. This is due to the direct consequence of `assumption I` in section **Optimistic Concurrency Control**.
 
 From the above statement it is easy to prove that `vert_level[i]` will be correct at the end of the program, regardless of any race-conditions occuring on `visited[i]`.
 
