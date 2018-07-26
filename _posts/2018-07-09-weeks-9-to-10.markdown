@@ -276,7 +276,7 @@ function unweighted_fast_partition!(num_items::Integer, part::Vector{UnitRange{T
 
 end
 
-function parallel_gdistances_2!(
+function parallel_gdistances!(
     g::AbstractGraph{T}, 
     source::Vector{<:Integer}
     ) where T <:Integer
