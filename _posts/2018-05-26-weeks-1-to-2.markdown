@@ -4,15 +4,15 @@ title:  "Weeks 1 to 2"
 date:   2018-05-26 14:10:51 +0800
 categories: GSoC
 tags: GSoC
-description: Approximation Algorithms, Johnson APSP, Kruskal MST, Union-Find.
+description: Greedy Heuristics, Johnson APSP, Kruskal MST, Union-Find Data Structure.
 ---
 # Tasks completed in weeks 1 to 2
 
-1. Approximation algorithms and greedy heuristics for the following problems:
+1. Greedy Heuristics for the following problems:
   * Travelling Salesman
   * Minimum Vertex Cover
   * Minimum Steiner Tree
-  * Minimum Maximal Matching
+  * Maximum Matching
   * Greedy Coloring with Interchange
   * Independent Vertex Set
   * Dominating Vertex Set
@@ -23,7 +23,7 @@ description: Approximation Algorithms, Johnson APSP, Kruskal MST, Union-Find.
 
 # Details
 
-## 1. Approximation algorithms and Greedy Hueristics
+## 1. Greedy Hueristics
 I implemented several straight forward approximation algorithms and greedy hueristics.
 I deviated from the proposal in the solution to Travelling Salesman because [Christofides algorithm](https://en.wikipedia.org/wiki/Christofides_algorithm) would require linear program solvers and LightGraphs has a policy of minimising dependencies.
 A common problem I faced while implementing the algorithms is, using a 'distributed for loop' would result in type instable code.
@@ -49,7 +49,7 @@ simulated by iterating over a random permutation of the vertices.
 
 It easy to see that both these algorithms will always return an independent set. It may not return the maximum independent set, but the returned independent set is always maximal. i.e. inserting any vertex into it will make it a non-independent set.
 
-## 2. Johnson's Shortest Path Algorithm
+## 2. Johnson's All Pairs Shortest Path Algorithm
 
 Implemented [Johnson' All Pairs Shortest Path Algorithm](https://en.wikipedia.org/wiki/Johnson%27s_algorithm).
 It is well known that Dijkstra is the fastest algorithm to solve the shortest paths problem.
@@ -59,7 +59,7 @@ using Bellman Ford Shortest Path Algorithm and then running Dijkstra from each s
 
 The code looked something like
 {% highlight julia %} 
-function johnson(g::AbstractGraph, distmx::AbstractMatrix)
+function johnson_shortest_paths(g::AbstractGraph, distmx::AbstractMatrix)
     BF = bellman_ford(g, vertices(g), distmx)
     distmx_tranform!(distmx, BF)
     ans = [dijkstra(g, v, distmx) for v in vertices(g)]  
@@ -69,9 +69,32 @@ end
 {% endhighlight %} 
 
 I initially failed to consider the case where the edge weights are immutable. 
-An additional `|E|` memory overhead will have to be incurred if the input includes immutable `distmx`.
+An additional `|E|` memory overhead will have to be incurred if the input includes immutable `distmx`. Eg. `johnson_shortest_paths(CompleteGraph(100), SymmetricMatrix(rand(100, 100))` would have resulted in an error because `SymmetricMatrix` has immutable entries.
 
-Eg. `johnson(CompleteGraph(100), SymmetricMatrix(rand(100, 100))` would have resulted in an error because `SymmetricMatrix` has immutable entries.
+The parallel implementation invokes the parallel implementation of `bellman_ford` and then
+runs each Dijkstra call in parallel.
+
+### Benchmarks
+
+---
+
+`nworkers() = 4`
+
+`g = loadsnap(:facebook_combined)` (\|V\| = 4039, \|E\| = 88234)
+
+`distmx = sparse(g)`
+
+```
+for e in edges(g)
+  d[e.src, e.dst] = d[e.dst, e.src] = rand(0:n)
+end
+```
+
+`johnson_shortest_paths(g, distmx)`:  48.071 s (186011 allocations: 1.18 GiB)
+
+`parallel_johnson_shortest_paths(g, distmx)`:  22.932 s (27205 allocations: 68.92 MiB)
+
+---
 
 ## 3. Kruskal's Minimum Spanning Tree
 `kruskal(g, distmx=weights(g))`
@@ -81,7 +104,7 @@ I replaced the priority queue with a sorting function. I also avoided creating a
 
 I replaced
 {% highlight julia %} 
-function kruskal_mst(g::AbstractGraph, distmx::AbstractMatrix)
+function old_kruskal_mst(g::AbstractGraph, distmx::AbstractMatrix)
     DO SOMETHING
 
     edge_wt_list = [KruskalHeapEntry(Edge(src(e), dst(e)), distmx[src(e), dst(e)]) for e in edges(g)]
@@ -115,15 +138,19 @@ end
 
 ---
 
-`distmx = rand(nv(g):nv(g), nv(g), nv(g))`
+`g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310)
 
----
+`distmx = sparse(g)`
 
-`g = CompleteGraph(1000)`: run-time improved from **193 ms** to **28 ms**.
+```
+for e in edges(g)
+  d[e.src, e.dst] = d[e.dst, e.src] = rand(-n:n)
+end
+```
 
----
+`old_kruskal_mst(g, distmx)`:  1.825 s (5512651 allocations: 116.70 MiB)
 
-`g = PathGraph(10000)`: run-time improved from **3.88 ms** to **1.15 ms**.
+`kruskal_mst(g, distmx)`:  237.103 ms (81324 allocations: 42.00 MiB)
 
 ---
 

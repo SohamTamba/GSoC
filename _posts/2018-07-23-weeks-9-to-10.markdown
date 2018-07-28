@@ -4,7 +4,7 @@ title:  "Weeks 9 to 10"
 date:   2018-07-23 14:10:51 +0530
 categories: GSoC
 tags: GSoC
-description: Optimistic Concurrency Control, Lock-free parallel BFS with static/dynamic load balancing, Merged Pull Requests, Explored max-flow algorithms.
+description: Optimistic Concurrency Control, Lock-free parallel BFS with static and dynamic Load-Balancing, Merged Pull Requests, Explored max-flow algorithms.
 ---
 # Tasks completed in weeks 9 to 10
 
@@ -202,8 +202,20 @@ If `i` in `indices` then at the end of the loop `A[i] = 0`.
 
 This is a reasonable assumption because the programmer always expects the changes made
 in the threaded loop to be present after the threaded has been exited. I also discussed
-this with the members of Julia's parallel group. This assumption will be used in dynamic load
-balancing solely to reduce the degradation of the program's performance when a data race occurs.
+this with the members of Julia's parallel group.
+
+**III.** If a write operation does not change the value of a variable then a concurrent read is safe.
+
+For example:
+
+Initially, a = 100
+{% highlight julia %}
+Thread 1: a = 100
+Thread 2: b = a
+{% endhighlight %}
+`b` will read `a` successfully.
+
+This is a reasonable assumption because the write does not change the value of `a`.
 
 ## 4. Lock-free parallel BFS with static load balancing
 
@@ -402,8 +414,6 @@ during a level exploration **will** be considered unexplored by the other thread
 
 ---
 ---
-  
---------------------Parallel GDistances------------------------------
 
 `g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310)
 

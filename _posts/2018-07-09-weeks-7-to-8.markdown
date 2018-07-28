@@ -4,7 +4,7 @@ title:  "Weeks 7 to 8"
 date:   2018-07-09 14:10:51 +0530
 categories: GSoC
 tags: GSoC
-description: Degree based Graph Partitioning, Batch Priority Queue, Improved Prim, Improved Dijkstra
+description: Degree based Graph Partitioning, Batch Priority Queue, Improved Prim MST, Improved Dijkstra SSSP.
 ---
 # Tasks completed in weeks 7 to 8
 
@@ -221,7 +221,7 @@ when you dequeue a vertex from the priority queue.
 
 ---
 
-`new_prim(g, distmx)`:  228.200 ms (802705 allocations: 20.28 MiB) 
+`prim(g, distmx)`:  228.200 ms (802705 allocations: 20.28 MiB) 
 
 ---
 
@@ -349,6 +349,19 @@ I was able to obtain a speed up by re-using arrays. I simply replaced `preds[v] 
 
 ---
 
-`new_dijkstra_shortest_paths(g, source, distmx)`: 265.332 ms (81397 allocations: 18.29 MiB)
+`dijkstra_shortest_paths(g, source, distmx)`: 265.332 ms (81397 allocations: 18.29 MiB)
+
+---
+---
+
+`trackvertices = allpaths = false`
+
+---
+
+`old_dijkstra_shortest_paths(g, source, distmx)`: 275.203 ms (293143 allocations: 33.21 MiB)
+
+---
+
+`dijkstra_shortest_paths(g, source, distmx)`: 234.954 ms (72 allocations: 10.85 MiB)
 
 ---

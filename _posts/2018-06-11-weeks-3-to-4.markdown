@@ -4,14 +4,14 @@ title:  "Weeks 3 to 4"
 date:   2018-06-12 14:10:51 +0530
 categories: GSoC
 tags: GSoC
-description: Parallel Floyd Warshsall APSP, Karger Min Cut, Parallel Bellman-Ford SP, Improved PRs.
+description: Parallel Floyd Warshsall APSP, Karger Minimum Cut, Parallel Bellman-Ford SSSP, Improved PRs.
 ---
 # Tasks completed in weeks 3 to 4
 
 1. Polished Pull Requests on Greedy Heuristics.
 2. Implemented Parallel Floyd Warshall All Pairs Shortest Paths algorithm.
 3. Implemented Karger Global Minimum Cut algorithm.
-4. Implemented Parallel Bellman Ford Shortest Paths algorithm. 
+4. Implemented Parallel Bellman Ford Single Source Shortest Paths algorithm. 
 
 # Details
 
@@ -78,33 +78,20 @@ Hence the update.
 
 `nthreads() = 4`
 
----
+`g = loadsnap(:facebook_combined)` (\|V\| = 4039, \|E\| = 88234)
 
-`distmx = rand(-nv(g):nv(g), nv(g), nv(g))`
+`distmx = sparse(g)`
 
----
+```
+for e in edges(g)
+  d[e.src, e.dst] = d[e.dst, e.src] = rand(0:n)
+end
+```
 
-`g = random_regular_graph(1000, 10)`
+`floyd_warshall_shortest_paths(g, distmx)`:  48.904 s (5 allocations: 124.46 MiB)
 
-`seq_floyd_warshall_shortest_paths(g, distmx)`: 806.479 ms (5 allocations: 15.26 MiB)
 
-`parallel_floyd_warshall_shortest_paths(g, distmx)`: 592.930 ms (1005 allocations: 15.32 MiB)
-
----
-
-`g = random_regular_graph(2000, 20)`
-
-`seq_floyd_warshall_shortest_paths(g, distmx)`: 6.548 s (5 allocations: 61.04 MiB)
-
-`parallel_floyd_warshall_shortest_paths(g, distmx)`: 4.997 s (2005 allocations: 61.16 MiB)
-
----
-
-`g = random_regular_graph(3000, 30)`
-
-`seq_floyd_warshall_shortest_paths(g, distmx)`: 21.194 s (5 allocations: 137.33 MiB)
-
-`parallel_floyd_warshall_shortest_paths(g, distmx)`: 16.924 s (3005 allocations: 137.51 MiB)  
+`parallel_floyd_warshall_shortest_paths(g, distmx)`:  38.628 s (4044 allocations: 124.65 MiB)
 
 ---
 
@@ -114,7 +101,7 @@ While there are more than two nodes in a graph, choose an edge at random and con
 The 2 nodes represent the cut.
 I implemented this algorithm using the disjoint set datastructure.
 
-## 4. Parallel Bellman Ford Shortest Paths
+## 4. Parallel Bellman Ford Single Source Shortest Path
 Bellman Ford algorithm is used to find the shortest path from a single source in a 
 graph that does not have any negative weight edge cycles.
 

@@ -4,7 +4,7 @@ title:  "Weeks 5 to 6"
 date:   2018-06-24 14:10:51 +0530
 categories: GSoC
 tags: GSoC
-description: Parallel Bellman-Ford, Parallel Kruskal, Parallel Pagerank, Multi-threaded Centrality Measures.
+description: Parallel Bellman-Ford SSSP, Parallel Kruskal MST, Parallel PageRank, Multi-threaded Centrality Measures.
 ---
 # Tasks completed in weeks 5 to 6
 
@@ -279,6 +279,12 @@ Both implementations of `parallel_find_cross_edge` were at best 10x slower than 
 By providing each thread with its own `local_connected_vs`, fewer queries were made on each data structure. Also, "merge connected component" operation would have to be performed on each of the `local_connected_vs`.
 
 ## 4. Multi-threaded Centrality Measures
+
+I wrote thread-safe implementations of multi-threaded
+- Betweeness
+- Closeness
+- Stress
+
 These algorithms are of the form:
 {% highlight julia %}
 function centrality(g::AbstractGraph, vertex_list, distmx::AbstractMatrix)
@@ -292,6 +298,9 @@ end
 {% endhighlight %} 
 They are easy parallelize as the Dijkstra can be run independently. But the addition of `info` must be done in a thread-safe manner.
 
+Parallel implementations using processes already exist. They are usually more efficient than 
+threads, but they require more memory (Each process copies the graph). Hence, the multi-threaded implementations would be more useful if there is insufficient memory. 
+
 {% highlight julia %}
 function threaded_centrality(g::AbstractGraph, vertex_list, distmx::AbstractMatrix)
     local_info = [zeros(vertices(g)) for _ in 1:nthreads()] 
@@ -303,5 +312,5 @@ function threaded_centrality(g::AbstractGraph, vertex_list, distmx::AbstractMatr
 end
 {% endhighlight %} 
 
-Although this created a significant speed up, the distributed implementations of centrality measures
+Although this created a significant speed up over the sequential version, the distributed implementations of centrality measures
 performed better.
