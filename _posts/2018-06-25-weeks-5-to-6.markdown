@@ -8,14 +8,17 @@ description: Parallel Bellman-Ford SSSP, Parallel Kruskal MST, Parallel PageRank
 ---
 # Tasks completed in weeks 5 to 6
 
-1. Memory efficient Parallel Bellman Ford Shortest Paths algorithm.
+1. Parallel Bellman Ford Shortest Paths algorithm without memory overhead.
 2. Implemented Parallel Pagerank.
 3. Implemented Parallel Kruskal.
 4. Implemented Multi-threaded Centrality Measures.
 
 # Details
 
-## 1. Memory efficient Parallel Bellman Ford
+## 1. Parallel Bellman Ford without memory overhead
+
+Refering to the post titled "Weeks 3 to 4", I wrote a parallel implementation of bellman-ford that provides a `dists` and `parents` array to each thread.
+
 I was able to make athe algorithm thread-safe without using atomic operations or local memory.
 
 Replace:

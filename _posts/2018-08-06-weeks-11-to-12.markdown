@@ -1,14 +1,16 @@
 ---
 layout: post
-title:  "WIP: Weeks 11 to 12"
+title:  "WIP:Weeks 11 to 12"
 date:   2018-07-23 14:10:51 +0530
 categories: GSoC
 tags: GSoC
-description: Lock-free parallel BFS with dynamic Load-Balancing.
+description: Lock-free parallel BFS with dynamic Load-Balancing, Improved sequential PageRank, Created Project Poster.
 ---
 # Tasks completed in weeks 11 to 12
 
-1. Implemented lock-free parallel Breadth-First Search with dynamic load balancing
+1. Implemented lock-free parallel Breadth-First Search with dynamic load balancing.
+2. Improved sequential PageRank.
+3. Created a poster for my GSoC project.
 
 # Details
 
@@ -255,4 +257,77 @@ The above code can cause concurrent write/write data race. As a consequence of
 
 ---
 
+## 2. Improved Sequential PageRank
 
+As explained in the post titled "Weeks 5 to 6", the pagerank code is of the form:
+
+{% highlight julia %}
+function old_pagerank(g::AbstractGraph, α, n, ϵ)
+    x = fill(1/nv(g), nv(g))
+    x_last = fill(1/nv(g), nv(g))
+    for _ in 1:num_iterations
+        DO SOMETHING
+
+        for e in edges(g)
+            u, v = src(e), dst(e)
+            xlast[v] += α * x[u] / outdegree(g, u)
+            if !is_directed(g)
+                xlast[u] += α * x[v] / outdegree(g, v)
+            end
+        end
+
+        DO SOMETHING
+    end
+end
+{% endhighlight %}
+
+I replaced the inner loop to iterate over the in-edges.
+
+{% highlight julia %}
+function pagerank(g::AbstractGraph, α, n, ϵ)
+    x = fill(1/nv(g), nv(g))
+    x_last = fill(1/nv(g), nv(g))
+    for _ in 1:num_iterations
+        DO SOMETHING
+
+        for v in vertices(g)
+            for u in inneighbors(g, v)
+                xlast[v] += α * x[u] / outdegree(g, u)
+            end
+        end
+
+        DO SOMETHING
+    end
+end
+{% endhighlight %}
+
+Although the same amount of "work" (number of operations) is being done, this implementation conducts memory operations more efficiently.
+
+### Benchmarks
+
+---
+`g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310)
+
+
+---
+---
+
+`old_pagerank(g)`:  290.723 ms (10 allocations: 1.86 MiB)
+
+---
+
+`pagerank(g)`: 95.063 ms (10 allocations: 1.86 MiB)
+
+---
+
+`nthreads() = 4`
+
+`parallelpagerank(g)`: 53.639 ms (21 allocations: 2.48 MiB)
+
+---
+
+## 3. GSoC Project Poster
+
+Julia's GSoC students are invited attend Juliacon 2018 and present our project.
+We have to create a poster that briefly describes our project and accomplishments.
+This year, Juliacon will be held in *University College London*.

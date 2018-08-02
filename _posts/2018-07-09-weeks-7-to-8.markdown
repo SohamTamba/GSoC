@@ -17,14 +17,11 @@ description: Degree based Graph Partitioning, Batch Priority Queue, Improved Pri
 
 ## 1. Degree based Graph Partitioning
 
-As explained in week 5 and 6, I found that Parallel Pagerank had an improvement in performance by
-partitioning the vertices and assigning it to a processor in an attempt to balance the number
-of edges assigned to each processor. To avoid race condition, no two processors could be assigned
-edges that have the same destination vertex.
+As explained in the post titled "Weeks 5 to 6", I found that Parallel Pagerank had an improvement in performance by partitioning the vertices and assigning it to a processor in an attempt to balance the number of edges assigned to each processor. To avoid race condition, no two processors could be assigned edges that have the same destination vertex.
 
 By balance, we mean to minimise that largest partition.
 
-I restricted the partitioning to contiguous partitions because the `num_part` partitions can be expressed in `num_part` integer ranges instead of `num_part` arrays that contain a total of `|V|` integers.
+I restricted the partitioning to contiguous partitions because the partitions can be expressed as integer ranges instead of arrays that contain a total of `|V|` integers.
 
 I had used a `simple greedy heuristic` to partition the edges.
 

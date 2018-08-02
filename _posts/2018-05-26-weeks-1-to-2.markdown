@@ -4,7 +4,7 @@ title:  "Weeks 1 to 2"
 date:   2018-05-26 14:10:51 +0800
 categories: GSoC
 tags: GSoC
-description: Greedy Heuristics, Johnson APSP, Kruskal MST, Union-Find Data Structure.
+description: Greedy Heuristics, Sequential/Parallel Johnson APSP, Improve Kruskal MST, Union-Find Data Structure.
 ---
 # Tasks completed in weeks 1 to 2
 
@@ -18,7 +18,7 @@ description: Greedy Heuristics, Johnson APSP, Kruskal MST, Union-Find Data Struc
   * Dominating Vertex Set
   * Local Node Connectivity
 2. Implemented Johnson's All Pairs Shortest Path algorithm.
-3. Improved Run-time of Kruskal's Minimum Spanning Tree.
+3. Improved Kruskal's Minimum Spanning Tree.
 4. Created the Union-Find data structure. 
 
 # Details
