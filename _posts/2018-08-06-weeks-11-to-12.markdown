@@ -4,13 +4,14 @@ title:  "WIP:Weeks 11 to 12"
 date:   2018-07-23 14:10:51 +0530
 categories: GSoC
 tags: GSoC
-description: Lock-free parallel BFS with dynamic Load-Balancing, Improved sequential PageRank, Created Project Poster.
+description: Lock-free parallel BFS with dynamic Load-Balancing, Improved sequential PageRank, Implemented parallel random heuristics, Created Project Poster.
 ---
 # Tasks completed in weeks 11 to 12
 
 1. Implemented lock-free parallel Breadth-First Search with dynamic load balancing.
 2. Improved sequential PageRank.
-3. Created a poster for my GSoC project.
+3. Implemented parallel random heuristics.
+4. Created a poster for my GSoC project.
 
 # Details
 
@@ -326,7 +327,98 @@ Although the same amount of "work" (number of operations) is being done, this im
 
 ---
 
-## 3. GSoC Project Poster
+## 3. Parallel Random Heuristics
+
+As explained in the post titled "Weeks 1 to 2", some algorithms will return a random solution 
+to a problem.
+
+Eg. the problem of Maximum Independent Set is to return the largest set of vertices in a graph
+such that no two vertices are adjacent.
+
+The code `maximal_independet_set(g)` will return a random independent set **S** such that
+all vertices not in **S** are adjacent to a vertex in **S**.
+
+We will usually makes `Reps` calls to `random_maximal_independet_set(g)` and return the largest set among them. The repeated calls can be made in parallel since the different calls are isolated from each other.
+
+I wrote 2 function `generate_min_set(g, gen_func, Reps)` and `generate_min_set(g, gen_func, Reps)`.
+`generate_min_set(g, gen_func, Reps)` makes `Reps` calls to `gen_func(g)` and returns the smallest set. You can guess what `generate_max_set(g, gen_func, Reps)` does.
+
+
+The distributed implementation of `generate_min_set` be desciebed as:
+
+{% highlight julia %}
+
+function distr_generate_min_set(
+	g::AbstractGraph{T}, 
+	gen_func::Function, 
+	Reps::Integer
+	) where T<: Integer 
+    # Type assert required for type stability
+    min_set::Vector{T} = @distributed ((x, y)->length(x) \< length(y) ? x : y) for _ in 1:Reps
+        gen_func(g)
+    end
+    return min_set
+end
+
+{% endhighlight %}
+
+The multi-threaded version of `generate_min_set` can be described as:
+
+{% highlight julia %}
+function threaded_generate_min_set(
+    g::AbstractGraph{T}, 
+    gen_func::Function, 
+    Reps::Integer
+    ) where T<: Integer 
+    n_t = Base.Threads.nthreads()
+    is_undef = ones(Bool, n_t)
+    min_sets = [Vector{T}() for _ in 1:n_t]
+
+    Base.Threads.@threads for _ in 1:Reps
+        t = Base.Threads.threadid()
+        next_set = gen_func(g)
+        if is_undef[t] || length(next_set) < length(min_sets[t])
+            min_sets[t] = next_set
+            is_undef[t] = false
+        end
+    end
+
+    min_ind = 0
+    for i in filter((j)->!is_undef[j], 1:n_t)
+        if min_ind == 0 || length(min_sets[i]) < length(min_sets[min_ind])
+            min_ind = i
+        end
+    end
+
+    return min_sets[min_ind]
+end
+
+{% endhighlight %}
+
+### Benchmarks
+
+---
+`g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310)
+
+---
+
+`maximal_independent_set(g)`: 65.974 ms (43 allocations: 42.98 MiB)
+
+---
+
+`gen_func = minimal_vertex_cover`
+
+---
+
+`threaded_generate_min_set(g, gen_func, 20)`: 696.458 ms (891 allocations: 695.65 MiB)
+
+---
+
+`distr_generate_min_set(g, gen_func, 1000)`: 36.367 s (419269 allocations: 101.96 MiB)
+
+---
+
+## 4. GSoC Project Poster
 
 Julia's GSoC students are invited attend Juliacon 2018 and present our project.
 We have to create a poster that briefly describes our project and accomplishments.
