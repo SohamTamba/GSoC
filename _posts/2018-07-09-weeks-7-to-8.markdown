@@ -3,7 +3,7 @@ layout: post
 title:  "Weeks 7 to 8"
 date:   2018-07-09 14:10:51 +0530
 categories: GSoC
-tags: GSoC
+tags: Prim Dijkstra Load-Balancing Priority-Queue
 description: Degree based Graph Partitioning, Batch Priority Queue, Improved Prim MST, Improved Dijkstra SSSP.
 ---
 # Tasks completed in weeks 7 to 8

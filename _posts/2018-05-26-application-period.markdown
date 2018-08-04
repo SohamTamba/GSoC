@@ -3,7 +3,7 @@ layout: post
 title:  "Application Period"
 date:   2018-05-26 14:10:51 +0800
 categories: GSoC
-tags: GSoC
+tags: Project
 description: Choosing a project, Making contributions, Writing a proposal
 ---
 

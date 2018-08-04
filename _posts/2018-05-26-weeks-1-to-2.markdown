@@ -3,7 +3,7 @@ layout: post
 title:  "Weeks 1 to 2"
 date:   2018-05-26 14:10:51 +0800
 categories: GSoC
-tags: GSoC
+tags: Kruskal Johnson Union-Find Greedy-Heuristics
 description: Greedy Heuristics, Sequential/Parallel Johnson APSP, Improve Kruskal MST, Union-Find Data Structure.
 ---
 # Tasks completed in weeks 1 to 2

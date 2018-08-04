@@ -3,7 +3,7 @@ layout: post
 title:  "Final Report"
 date:   2018-08-02 14:10:51 +0530
 categories: GSoC
-tags: Final_Report
+tags: Final-Report
 description: Lock-free parallel BFS with dynamic Load-Balancing, Improved sequential PageRank, Implemented parallel random heuristics, Created Project Poster.
 ---
 

@@ -3,7 +3,7 @@ layout: post
 title:  "Weeks 3 to 4"
 date:   2018-06-12 14:10:51 +0530
 categories: GSoC
-tags: GSoC
+tags: Floyd-Warshall Karger Bellman-Ford
 description: Parallel Floyd Warshsall APSP, Karger Minimum Cut, Parallel Bellman-Ford SSSP, Improved PRs.
 ---
 # Tasks completed in weeks 3 to 4

@@ -3,7 +3,7 @@ layout: post
 title:  "Weeks 9 to 10"
 date:   2018-07-23 14:10:51 +0530
 categories: GSoC
-tags: GSoC
+tags: Optimistic-Concurrency-Control Load-Balancing Breadth-First-Search
 description: Optimistic Concurrency Control, Lock-free parallel BFS with static and dynamic Load-Balancing, Merged Pull Requests, Explored max-flow algorithms.
 ---
 # Tasks completed in weeks 9 to 10
