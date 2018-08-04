@@ -208,19 +208,41 @@ when you dequeue a vertex from the priority queue.
 ### Benchmarks
 
 ---
+`distmx = sparse(g)`
+
+```
+for e in edges(g)
+  d[e.src, e.dst] = d[e.dst, e.src] = rand(-n:n)
+end
+```
+
+---
+---
+
 `g = loadsnap(:ego_twitter_u)` (|V| = 81306, |E| = 1342310)
 
-`distmx` = Sparse Matrix with random weights.
-
----
-
 `old_prim(g, distmx)`:  1.743 s (5274021 allocations: 132.38 MiB)
-
----
 
 `prim(g, distmx)`:  228.200 ms (802705 allocations: 20.28 MiB) 
 
 ---
+---
+
+`g = loadsnap(:ca_astroph)` (|V| = 17903, |E| = 197031)
+
+`old_prim(g, distmx)`:  149.062 ms (768457 allocations: 19.39 MiB)
+
+`prim(g, distmx)`:  37.570 ms (197234 allocations: 4.59 MiB)
+
+---
+---
+
+`g = loadsnap(:facebook_combined)` (|V| = 4039, |E| = 88234)
+
+`old_prim(g, distmx)`:  41.353 ms (340348 allocations: 8.59 MiB)
+
+`prim(g, distmx)`:  10.230 ms (45947 allocations: 973.91 KiB)
+
 
 ## 4. Improved implementation of Dijkstra's SSSP
 
@@ -230,25 +252,6 @@ Matrices in Julia are usually collumn-major. i.e. it is MUCH more efficient to i
 Due to the conventional format of the distance matrix (`distmx[i, j] = weight of edge i -> j`), the code iterates over the row. 
 We decided to instruct the user in the performance docs to use
 a `Transpose` (which is row-major) type matrix to represent the distance matrix.
-
-### Benchmarks
-
----
-`g = loadsnap(:ego_twitter_u)` (|V| = 81306, |E| = 1342310)
-`source = 1`
-
----
----
-
-`distmx` of type `SparseMatrixCSC{Float64,Int64}`
-`disjkstra_shortest_paths(g, source, distmx)` : 527.681 ms (292673 allocations: 32.86 MiB)
-
----
-
-`distmx` of type `Transpose{Float64,SparseArrays.SparseMatrixCSC{Float64,Int64}}`:
-`disjkstra_shortest_paths(g, source, distmx)` : 259.203 ms (292673 allocations: 32.86 MiB)
-
----
 
 ### II. Optimise Collecting additional data.
 
@@ -263,7 +266,7 @@ Eg.
 
 I replaced
 {% highlight julia %}
-function dijkstra(g::AbstractGraph, source::Integer, distmx::AbstractMatrix)  # allpaths = true
+function old_dijkstra(g::AbstractGraph, source::Integer, distmx::AbstractMatrix)  # allpaths = true
     dists = fill(typemax(eltype(g)), nv(g))
     dists[source] = 0
     pq = make_priorityqueue(dists)
@@ -287,7 +290,7 @@ end
 {% endhighlight %}
 with
 {% highlight julia %}
-function dijkstra(g::AbstractGraph, source::Integer, distmx::AbstractMatrix) # allpaths = true
+function attempt_dijkstra(g::AbstractGraph, source::Integer, distmx::AbstractMatrix) # allpaths = true
     dists = fill(typemax(eltype(g)), nv(g))
     dists[source] = 0
     pq = make_priorityqueue(dists)
@@ -326,39 +329,85 @@ I was able to obtain a speed up by re-using arrays. I simply replaced `preds[v] 
 ### Benchmarks
 
 ---
-`source = 1`
+`src = 1`
 
+`distmx = sparse(g)`
+
+```
+for e in edges(g)
+  d[e.src, e.dst] = d[e.dst, e.src] = rand(-n:n)
+end
+```
+
+`tr_distmx` = transpose(distmx)
+
+---
 ---
 
 `g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310) 
 
----
+`old_dijkstra_shortest_paths(g, src, distmx)`:  559.962 ms (292429 allocations: 33.16 MiB)
 
-`distmx` = Transpose of SparseMatrix with random weights.
+`dijkstra_shortest_paths(g, src, distmx)`:  492.507 ms (67 allocations: 10.85 MiB)
 
----
-
-`trackvertices = allpaths = true`
-
----
-
-`old_dijkstra_shortest_paths(g, source, distmx)`: 302.742 ms (522050 allocations: 47.43 MiB)
-
----
-
-`dijkstra_shortest_paths(g, source, distmx)`: 265.332 ms (81397 allocations: 18.29 MiB)
+`dijkstra_shortest_paths(g, src, tr_distmx)`:  235.182 ms (67 allocations: 10.85 MiB)
 
 ---
 ---
 
-`trackvertices = allpaths = false`
+`g = loadsnap(:ca_astroph)` (\|V\| = 17903, \|E\| = 197031) 
+
+`old_dijkstra_shortest_paths(g, src, distmx)`:  64.641 ms (52125 allocations: 6.06 MiB)
+
+`dijkstra_shortest_paths(g, src, distmx)`:  53.635 ms (59 allocations: 2.09 MiB)
+
+`dijkstra_shortest_paths(g, src, tr_distmx)`:  30.818 ms (59 allocations: 2.09 MiB)
 
 ---
-
-`old_dijkstra_shortest_paths(g, source, distmx)`: 275.203 ms (293143 allocations: 33.21 MiB)
-
 ---
 
-`dijkstra_shortest_paths(g, source, distmx)`: 234.954 ms (72 allocations: 10.85 MiB)
+`g = loadsnap(:facebook_combined)` (\|V\| = 4039, \|E\| = 88234) 
+
+`old_dijkstra_shortest_paths(g, src, distmx)`:  16.252 ms (16509 allocations: 1.66 MiB)
+
+`dijkstra_shortest_paths(g, src, distmx)`:  13.380 ms (47 allocations: 417.92 KiB)
+
+`dijkstra_shortest_paths(g, src, tr_distmx)`: 9.720 ms (47 allocations: 417.92 KiB)
 
 ---
+---
+
+`allpaths = trackvertices = true`
+
+---
+---
+
+`g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310) 
+
+`old_dijkstra_shortest_paths(g, src, distmx)`:  598.619 ms (521217 allocations: 47.38 MiB)
+
+`dijkstra_shortest_paths(g, src, distmx)`:  534.856 ms (81391 allocations: 18.29 MiB)
+
+`dijkstra_shortest_paths(g, src, tr_distmx)`:  269.884 ms (81391 allocations: 18.29 MiB)
+
+---
+---
+
+`g = loadsnap(:ca_astroph)` (\|V\| = 17903, \|E\| = 197031) 
+
+`old_dijkstra_shortest_paths(g, src, distmx)`:  67.667 ms (96120 allocations: 8.90 MiB)
+
+`dijkstra_shortest_paths(g, src, distmx)`:  59.666 ms (17971 allocations: 3.73 MiB)
+
+`dijkstra_shortest_paths(g, src, tr_distmx)`:  33.853 ms (17971 allocations: 3.73 MiB)
+
+---
+---
+
+`g = loadsnap(:facebook_combined)` (\|V\| = 4039, \|E\| = 88234) 
+
+`old_dijkstra_shortest_paths(g, src, distmx)`:  16.958 ms (28984 allocations: 2.46 MiB)
+
+`dijkstra_shortest_paths(g, src, distmx)`:  13.678 ms (4102 allocations: 831.09 KiB)
+
+`dijkstra_shortest_paths(g, src, tr_distmx)`:  9.922 ms (4102 allocations: 831.09 KiB)

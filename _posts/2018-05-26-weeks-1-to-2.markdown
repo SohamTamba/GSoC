@@ -137,9 +137,6 @@ end
 ### Benchmarks
 
 ---
-
-`g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310)
-
 `distmx = sparse(g)`
 
 ```
@@ -148,11 +145,35 @@ for e in edges(g)
 end
 ```
 
+---
+---
+
+`g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310)
+
+
 `old_kruskal_mst(g, distmx)`:  1.825 s (5512651 allocations: 116.70 MiB)
 
 `kruskal_mst(g, distmx)`:  237.103 ms (81324 allocations: 42.00 MiB)
 
 ---
+---
+
+`g = loadsnap(:ca_astroph)` (\|V\| = 17903, \|E\| = 197031)
+
+`old_kruskal_mst(g, distmx)`:  134.475 ms (819823 allocations: 17.43 MiB)
+
+`kruskal_mst(g, distmx)`:  39.764 ms (17920 allocations: 5.95 MiB)
+
+---
+---
+
+`g = loadsnap(:facebook_combined)` (\|V\| = 4039, \|E\| = 88234)
+
+
+`old_kruskal_mst(g, distmx)`:  41.809 ms (350697 allocations: 7.46 MiB)
+
+`kruskal_mst(g, distmx)`:  15.303 ms (4056 allocations: 2.51 MiB)
+
 
 ## 4. Union Find Data Structure
 

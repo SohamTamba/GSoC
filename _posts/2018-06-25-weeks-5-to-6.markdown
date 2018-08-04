@@ -79,36 +79,34 @@ end
 
 Thus, I made the multi-threaded loop thread-safe by operating on the in-edges instead of the out-edges. The trade-off is the code will likely end up iterating over more edges than necessary. i.e. Instead of iterating over `outneighbors(g, active)`, it will iterate over `inneighbors(g, outneighbors(g, active))`.
 
+I also attempted to parallelise it using atomic operations. However, the run-time shot
+through the roof with that implementation
+
 ### Benchmarks
 
 ---
-
 `nthreads() = 4`
-
----
 
 `src = 1`
 
----
+`distmx = sparse(g)`
 
-`distmx = rand(-nv(g):nv(g), nv(g), nv(g))`
-
----
-
-`g = loadsnaps(:facebook_combined)` ( \|V\| = 4039, \|E\| = 88234) with random weights.
-
----
-
-`seq_bellman_ford_shortest_paths(g, src, distmx)`: 39.675 s (92898 allocations: 764.61 MiB)
+```
+for e in edges(g)
+  d[e.src, e.dst] = d[e.dst, e.src] = rand(0:n)
+end
+```
 
 ---
-
-`parallel_bellman_ford_shortest_paths(g, src, distmx)`: 24.677 s (28290 allocations: 251.70 MiB)
-
 ---
 
-I also attempted to parallelise it using atomic operations. However, the run-time shot
-through the roof with this implementation
+`g = loadsnaps(:facebook_combined)` ( \|V\| = 4039, \|E\| = 88234)
+
+`seq_bellman_ford_shortest_paths(g, src, distmx)`:  62.604 s (92898 allocations: 764.61 MiB)
+
+`parallel_bellman_ford_shortest_paths(g, src, distmx)`:  33.319 s (28290 allocations: 251.70 MiB)
+
+---
 
 ## 2. Parallel Pagerank
 The sequential code can be broadly described as:

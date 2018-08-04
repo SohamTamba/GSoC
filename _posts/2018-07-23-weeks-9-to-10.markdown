@@ -419,16 +419,16 @@ during a level exploration **will** be considered unexplored by the other thread
 
 ---
 
-`gdistances(g, sources)`:  13.190 ms (8 allocations: 1.87 MiB)
+`gdistances(g, sources)`:  13.741 ms (6 allocations: 1.25 MiB
 
 ---
 
-`parallel_distances(g, sources)`:  13.645 ms (29 allocations: 4.36 MiB)
+`parallel_distances(g, sources)`:  13.046 ms (26 allocations: 3.88 MiB)
 
 ---
 
 As you can see, BFS on `g = random_regular_graph(200000, 400)` obtained a good speed up while BFS on
-`g = loadsnap(:ego_twitter_u)` showed a negligible slow down. This is likely because the `random_regular_graph` had better partitioning.
+`g = loadsnap(:ego_twitter_u)` showed almost no difference. This is likely because the `random_regular_graph` had better partitioning.
 
 ## 5. Lock-free parallel BFS with dynamic load balancing
 

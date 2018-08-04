@@ -218,8 +218,6 @@ The above code can cause concurrent write/write data race. As a consequence of
 ---
 `nthreads() = 4`
 
----
-
 `sources = [1,]`
 
 ---
@@ -227,15 +225,9 @@ The above code can cause concurrent write/write data race. As a consequence of
 
 `g = random_regular_graph(200000, 400)` (\|V\| = 200000, \|E\| = 40000000)
 
----
-
 `gdistances(g, sources)`:  136.752 ms (7 allocations: 3.08 MiB
 
----
-
 `static_parallel_distances(g, sources)`:  87.601 ms (24 allocations: 9.20 MiB)
-
----
 
 `dynamic_parallel_distances(g, sources)`:  79.350 ms (32 allocations: 12.26 MiB)
 
@@ -244,19 +236,34 @@ The above code can cause concurrent write/write data race. As a consequence of
 
 `g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310)
 
----
+`gdistances(g, sources)`:  13.741 ms (6 allocations: 1.25 MiB)
 
-`gdistances(g, sources)`:  13.185 ms (6 allocations: 1.25 MiB)
-
----
-
-`static_parallel_distances(g, sources)`:  13.642 ms (25 allocations: 3.74 MiB)
-
----
+`static_parallel_distances(g, sources)`:  13.046 ms (26 allocations: 3.88 MiB)
 
 `dynamic_parallel_distances(g, sources)`:  7.362 ms (33 allocations: 4.98 MiB)
 
 ---
+---
+
+`g = loadsnap(:ca_astroph)` (\|V\| = 81306, \|E\| = 1342310)
+
+`gdistances(g, sources)`:  2.544 ms (6 allocations: 282.38 KiB)
+
+`static_parallel_distances(g, sources)`:  2.466 ms (29 allocations: 875.94 KiB)
+
+`dynamic_parallel_distances(g, sources)`:  1.206 ms (34 allocations: 1.11 MiB)
+
+---
+---
+
+`g = loadsnap(:ca_astroph)` (\|V\| = 4039, \|E\| = 88234)
+
+`gdistances(g, sources)`:  412.740 μs (6 allocations: 64.05 KiB)
+
+`static_parallel_distances(g, sources)`:  194.763 μs (30 allocations: 258.70 KiB)
+
+`dynamic_parallel_distances(g, sources)`:  343.053 μs (24 allocations: 198.97 KiB)
+
 
 ## 2. Improved Sequential PageRank
 
@@ -307,25 +314,41 @@ Although the same amount of "work" (number of operations) is being done, this im
 ### Benchmarks
 
 ---
+`nthreads() = 4`
+
+---
+---
+
 `g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310)
-
-
----
----
 
 `old_pagerank(g)`:  290.723 ms (10 allocations: 1.86 MiB)
 
----
-
 `pagerank(g)`: 95.063 ms (10 allocations: 1.86 MiB)
 
----
-
-`nthreads() = 4`
-
-`parallelpagerank(g)`: 53.639 ms (21 allocations: 2.48 MiB)
+`parallel_pagerank(g)`: 53.639 ms (21 allocations: 2.48 MiB)
 
 ---
+---
+
+`g = loadsnap(:ca_astroph)` (\|V\| = 17903, \|E\| = 197031)
+
+`old_pagerank(g)`:  53.715 ms (10 allocations: 420.00 KiB)
+
+`pagerank(g)`:  15.944 ms (10 allocations: 420.00 KiB)
+
+`parallel_pagerank(g)`:  10.485 ms (23 allocations: 560.44 KiB)
+
+---
+---
+
+`g = loadsnap(:facebook_combined)` (\|V\| = 4039, \|E\| = 88234)
+
+`old_pagerank(g)`:  27.367 ms (10 allocations: 95.06 KiB)
+
+`pagerank(g)`:  8.610 ms (10 allocations: 95.06 KiB)
+
+`parallel_pagerank(g)`:  5.273 ms (26 allocations: 127.33 KiB)
+
 
 ## 3. Parallel Random Heuristics
 
@@ -398,25 +421,49 @@ end
 ### Benchmarks
 
 ---
-`g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310)
-
----
-
-`maximal_independent_set(g)`: 65.974 ms (43 allocations: 42.98 MiB)
-
----
-
 `gen_func = minimal_vertex_cover`
 
+`nthreads() = 4`
+
+`nworkers() = 4`
+
+`Reps_t = 40`
+
+`Reps_d = 400`
+
+---
 ---
 
-`threaded_generate_min_set(g, gen_func, 20)`: 696.458 ms (891 allocations: 695.65 MiB)
+`g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310)
+
+`gen_func(g)`:  68.255 ms (43 allocations: 42.98 MiB)
+
+`threaded_generate_min_set(g, gen_func, Reps_t)`:  1.529 s (1753 allocations: 1.66 GiB)
+
+`distr_generate_min_set(g, gen_func, Reps_d)`:  14.454 s (419345 allocations: 101.94 MiB)
 
 ---
+---
 
-`distr_generate_min_set(g, gen_func, 1000)`: 36.367 s (419269 allocations: 101.96 MiB)
+`g = loadsnap(:ca_astroph)` (\|V\| = 17903, \|E\| = 197031)
+
+`gen_func(g)`:  7.442 ms (39 allocations: 6.52 MiB)
+
+`threaded_generate_min_set(g, gen_func, Reps_t)`:  175.882 ms (1590 allocations: 242.64 MiB)
+
+`distr_generate_min_set(g, gen_func, Reps_d)`:  2.034 s (86002 allocations: 16.69 MiB)
 
 ---
+---
+
+`g = loadsnap(:facebook_combined)` (\|V\| = 4039, \|E\| = 88234)
+
+`gen_func(g)`:  2.870 ms (35 allocations: 2.82 MiB)
+
+`threaded_generate_min_set(g, gen_func, Reps_t)`:  69.671 ms (1362 allocations: 79.12 MiB)
+
+`distr_generate_min_set(g, gen_func, Reps_d)`:  721.288 ms (21644 allocations: 7.29 MiB)
+
 
 ## 4. GSoC Project Poster
 
