@@ -150,7 +150,6 @@ end
 
 `g = loadsnap(:ego_twitter_u)` (\|V\| = 81306, \|E\| = 1342310)
 
-
 `old_kruskal_mst(g, distmx)`:  1.825 s (5512651 allocations: 116.70 MiB)
 
 `kruskal_mst(g, distmx)`:  237.103 ms (81324 allocations: 42.00 MiB)

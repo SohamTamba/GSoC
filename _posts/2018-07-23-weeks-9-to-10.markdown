@@ -364,6 +364,8 @@ function parallel_gdistances!(
 end
 {% endhighlight %}
 
+Due to the fact that `push!(next_level::Vector, i::T)` is not thread-safe, this implementation must incur a memory overhead of `nthreads()*sizeof(T)`. This could slow down the program by ruining its cache efficiency when many cores are being used.
+
 #### **Data Race on visited**
 
 Multiple threads have read/write access to `visited::BitArray{1}`.

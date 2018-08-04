@@ -1,7 +1,7 @@
 ---
 layout: post
-title:  "WIP:Weeks 11 to 12"
-date:   2018-07-23 14:10:51 +0530
+title:  "Weeks 11 to 12"
+date:   2018-08-03 14:10:51 +0530
 categories: GSoC
 tags: Optimistic-Concurrency-Control Load-Balancing Breadth-First-Search PageRank Greedy-Heuristics
 description: Lock-free parallel BFS with dynamic Load-Balancing, Improved sequential PageRank, Implemented parallel random heuristics, Created Project Poster.
@@ -150,6 +150,7 @@ In the above implementation, each thread reads `v = cur_level_t[t]` and writes
 Each thread increments `local_front = cur_front_t[t]` by `queue_segment_size` so that the next read to `cur_front_t[t]` cannot claim read the vertices in indices 
 `local_front:local_front+queue_segment_size`.
 
+Due to the fact that `push!(next_level::Vector, i::T)` is not thread-safe, this implementation must incur a memory overhead of `2*nthreads()*sizeof(T)`. This could slow down the program by ruining its cache efficiency when many cores are being used.
 
 #### Data races on visited[t]
 
@@ -245,7 +246,7 @@ The above code can cause concurrent write/write data race. As a consequence of
 ---
 ---
 
-`g = loadsnap(:ca_astroph)` (\|V\| = 81306, \|E\| = 1342310)
+`g = loadsnap(:ca_astroph)` (\|V\| = 17903, \|E\| = 197031) 
 
 `gdistances(g, sources)`:  2.544 ms (6 allocations: 282.38 KiB)
 
@@ -256,13 +257,13 @@ The above code can cause concurrent write/write data race. As a consequence of
 ---
 ---
 
-`g = loadsnap(:ca_astroph)` (\|V\| = 4039, \|E\| = 88234)
+`g = loadsnap(:facebook_combined)` (\|V\| = 4039, \|E\| = 88234)
 
 `gdistances(g, sources)`:  412.740 μs (6 allocations: 64.05 KiB)
 
-`static_parallel_distances(g, sources)`:  194.763 μs (30 allocations: 258.70 KiB)
+`static_parallel_distances(g, sources)`:  343.053 μs (24 allocations: 198.97 KiB)
 
-`dynamic_parallel_distances(g, sources)`:  343.053 μs (24 allocations: 198.97 KiB)
+`dynamic_parallel_distances(g, sources)`:  194.763 μs (30 allocations: 258.70 KiB)
 
 
 ## 2. Improved Sequential PageRank

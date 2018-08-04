@@ -333,9 +333,6 @@ end
 
 `vs = collect(vertices(g))`
 
----
----
-
 `nthreads() = 4`
 
 `nworkers() = 4`

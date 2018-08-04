@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Final Report"
-date:   2018-08-02 14:10:51 +0530
+date:   2018-08-04 14:10:51 +0530
 categories: GSoC
 tags: Final-Report
 description: Lock-free parallel BFS with dynamic Load-Balancing, Improved sequential PageRank, Implemented parallel random heuristics, Created Project Poster.
@@ -19,9 +19,17 @@ My project consists of three types of activities:
 The code I have written is available in my [Cloned LightGraphs Repository]("https://github.com/SohamTamba/LightGraphs.jl")
 
 The speed-up is obtained based on benchmarks conducted on a 64-bit linux machine using 4 cores.
-For all the algorithms mentioned below except Floyd Warshall APSP, Johnson APSP and Centrality Measures, the input graph is the Ego Twitter Graph with random edge weights. For other the algorithms
-the input graph is the FaceBook Combined Graph with random edge weights. The benchmarks are available in previous posts of this blog. For sequential algorithms, the speed-up is measured relative to the pre-existing implementation in LightGraphs. For parallel algorithms, the speed-up is measured relative to either my sequential implementation or the pre-existing sequential implementation in
-LightsGraphs (Which ever is faster).
+For most of the algorithms mentioned below benchmarks were obtained on the following graphs with random edge weights:
+
+- **Twitter Social Circles Graph**   (\|V\| = 81306, \|E\| = 1342310)
+- **Astro Physics Collaboration Graph**  (\|V\| = 17903, \|E\| = 197031)
+- **FaceBook Social Circles Graph**  ( \|V\| = 4039, \|E\| = 88234)
+
+For Floyd Warshall APSP, Bellman Ford SSSP, Centrality Measures benchmarks were obtained only on the FaceBook Social Circles Graph.
+
+For sequential algorithms, the speed-up is measured relative to the pre-existing implementation in LightGraphs. For parallel algorithms, the speed-up is measured relative to either my sequential implementation or the pre-existing sequential implementation in
+LightsGraphs (Whichever is faster).
+
 
 
 I have attempted to merge my code in LightGraphs.jl which is an optimized graph library written in Julia. I classify the status of my work into three types:
@@ -31,7 +39,7 @@ I have attempted to merge my code in LightGraphs.jl which is an optimized graph 
 3. Completed but not Applicable to LightGraphs.
 4. Requires Improvement (Future Work).
 
-In the following sections, I will list the functionality I have implemented, a link to the corresponding branch in my cloned repository and speed-up if applicable. Further details can be found in the posts preceeding this blog.
+In the following sections, I will list the functionality I have implemented, a link to the corresponding branch in my cloned repository and speed-up (on the largest graph available mentioned above) if applicable. Further details can be found in the posts preceeding this blog.
 
 # 1. Completed and Merged
 
@@ -70,7 +78,7 @@ In this section, I will list the functions that I have implemented but was not a
 - [Parallel Breadth-First Search](https://github.com/SohamTamba/LightGraphs.jl/tree/Parallel_GDistances) **1.79x**
 
 
-# 3. Completed but not applicable
+# 3. Completed but not Applicable
 
 In this section, I will list the implemented functions that will not be merged into LightGraphs and they are not suitable for LightGraphs.
 
