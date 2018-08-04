@@ -315,5 +315,60 @@ function threaded_centrality(g::AbstractGraph, vertex_list, distmx::AbstractMatr
 end
 {% endhighlight %} 
 
-Although this created a significant speed up over the sequential version, the distributed implementations of centrality measures
-performed better.
+Although this created a significant speed up over the sequential version, the pre-existing distributed implementations of centrality measures performed just as well. 
+The benefit of using multithreaded implementations over distributed implementations is
+you do not need to copy the data into multiple processes.
+
+### Benchmarks
+
+---
+
+`g = loadsnap(:facebook_combined)` (\|V\| = 4039, \|E\| = 88234)
+
+`distmx = sparse(g)`
+
+```
+for e in edges(g)
+  d[e.src, e.dst] = d[e.dst, e.src] = rand(0:n)
+end
+```
+
+`vs = collect(vertices(g))`
+
+---
+---
+
+`nthreads() = 4`
+
+`nworkers() = 4`
+
+---
+---
+
+`betweenness_centrality(g, vs, distmx)`: 59.572 s (116871141 allocations: 8.77 GiB)
+
+`threaded_betweenness_centrality(g, vs, distmx)`: 30.474 s (107868756 allocations: 9.08 GiB)
+
+`distr_betweenness_centrality(g, vs, distmx)`: 29.564 s (21577 allocations: 4.80 MiB)
+
+---
+---
+
+
+`closeness_centrality(g, distmx)`: 56.938 s (66577274 allocations: 6.10 GiB)
+
+`threaded_closeness_centrality(g, distmx)`: 26.270 s (63217567 allocations: 5.84 GiB)
+
+`distr_closeness_centrality(g, distmx)`: 26.689 s (22472 allocations: 4.54 MiB)
+
+---
+---
+
+`stress_centrality(g, distmx)`: 11.132 s (24771184 allocations: 3.54 GiB)
+
+`threaded_stress_centrality(g, distmx)`: 6.724 s (23077828 allocations: 3.32 GiB)
+
+`distr_stress_centrality(g, distmx)`: 6.696 s (21470 allocations: 4.74 MiB)
+
+---
+---
