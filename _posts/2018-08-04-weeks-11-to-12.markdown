@@ -468,6 +468,6 @@ end
 
 ## 4. GSoC Project Poster
 
-Julia's GSoC students are invited attend Juliacon 2018 and present our project.
+Julia's GSoC students are invited to attend Juliacon 2018 and present our project.
 We have to create a poster that briefly describes our project and accomplishments.
-This year, Juliacon will be held in *University College London*.
+My poster can be found [here](https://github.com/SohamTamba/GSoC/blob/gh-pages/Poster.pdf).
