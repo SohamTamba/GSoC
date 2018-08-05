@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Weeks 11 to 12"
-date:   2018-08-03 14:10:51 +0530
+date:   2018-08-04 14:10:51 +0530
 categories: GSoC
 tags: Optimistic-Concurrency-Control Load-Balancing Breadth-First-Search PageRank Greedy-Heuristics
 description: Lock-free parallel BFS with dynamic Load-Balancing, Improved sequential PageRank, Implemented parallel random heuristics, Created Project Poster.

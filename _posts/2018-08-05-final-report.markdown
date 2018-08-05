@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Final Report"
-date:   2018-08-04 14:10:51 +0530
+date:   2018-08-05 14:10:51 +0530
 categories: GSoC
 tags: Final-Report
 description: Lock-free parallel BFS with dynamic Load-Balancing, Improved sequential PageRank, Implemented parallel random heuristics, Created Project Poster.
@@ -127,7 +127,7 @@ In this section, I will list the functions that I have implemented but was not a
 
 # 3. Completed but not Applicable
 
-In this section, I will list the implemented functions that will not be merged into LightGraphs and they are not suitable for LightGraphs.
+In this section, I will list the implemented functions that will not be merged into LightGraphs as they are not suitable for LightGraphs.
 
 - [Minimum Steiner Tree](https://github.com/SohamTamba/LightGraphs.jl/tree/GSoC/SteinerTree)
 - [Travelling Salesman](https://github.com/SohamTamba/LightGraphs.jl/tree/GSoC/TravellingSalesman)
