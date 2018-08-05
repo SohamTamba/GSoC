@@ -21,16 +21,63 @@ The code I have written is available in my [Cloned LightGraphs Repository]("http
 The speed-up is obtained based on benchmarks conducted on a 64-bit linux machine using 4 cores.
 For most of the algorithms mentioned below benchmarks were obtained on the following graphs with random edge weights:
 
-- **Twitter Social Circles Graph**   (\|V\| = 81306, \|E\| = 1342310)
-- **Astro Physics Collaboration Graph**  (\|V\| = 17903, \|E\| = 197031)
-- **FaceBook Social Circles Graph**  ( \|V\| = 4039, \|E\| = 88234)
 
-For Floyd Warshall APSP, Bellman Ford SSSP, Centrality Measures benchmarks were obtained only on the FaceBook Social Circles Graph.
+<style>
 
-For sequential algorithms, the speed-up is measured relative to the pre-existing implementation in LightGraphs. For parallel algorithms, the speed-up is measured relative to either my sequential implementation or the pre-existing sequential implementation in
-LightsGraphs (Whichever is faster).
+table{
+    border-collapse: collapse;
+    border-spacing: 0;
+    border:2px solid #ff0000;
+}
+
+th{
+    border:2px solid #000000;
+}
+
+td{
+    border:1px solid #000000;
+}
+</style>
+
+---
+
+No. | Graph | Vertices | Edges 
+:---: | :---------: | :------------: | :-----------------:
+1 | Twitter Social Circles | 81,306 | 1,342,310 
+2 | Astro-Physics Collaboration | 17,903 | 197,031
+3 | Facebook Social Circles | 4,039 | 88,234 
+
+---
 
 
+
+**Speed-up on parallelization with 4 cores:**
+
+Algorithm | Twitter | Astro-Physics | Facebook
+---------: | :------------: | :-----------------: | :-------:
+Breadth-First Search | 1.80 | 2.08 | 2.12
+PageRank | 1.77 | 1.54 | 1.65
+Bellman Ford SSSP | - | - | 1.88
+Floyd Warshall APSP | - | - | 1.27
+Johnson APSP | - | -  |2.10
+Randomized Heuristic | 1.88 | 1.70 | 1.66
+Betweenness Centrality | - | - | 1.96
+Closeness Centrality | - | - | 2.17
+Stress Centrality | - | - | 1.66
+
+
+---
+
+**Speed-up on sequential optimization:**
+
+Algorithm | Twitter | Astro-Physics | Facebook
+---------: | :------------: | :-----------------: | :-------:
+PageRank | 3.05 | 3.37 | 3.17
+Dijkstra SSSP | 2.80 | 2.10 | 1.68
+Prim MST | 7.65 | 4.25 | 4.05
+Kruskal MST | 7.70 | 3.37 | 2.80
+
+---
 
 I have attempted to merge my code in LightGraphs.jl which is an optimized graph library written in Julia. I classify the status of my work into three types:
 
@@ -39,22 +86,22 @@ I have attempted to merge my code in LightGraphs.jl which is an optimized graph 
 3. Completed but not Applicable to LightGraphs.
 4. Requires Improvement (Future Work).
 
-In the following sections, I will list the functionality I have implemented, a link to the corresponding branch in my cloned repository and speed-up (on the largest graph available mentioned above) if applicable. Further details can be found in the posts preceeding this blog.
+In the following sections, I will list the functionality I have implemented, a link to the corresponding branch in my cloned repository. Further details can be found in the posts preceeding this blog.
 
 # 1. Completed and Merged
 
 In this section, I will list the functions that I have implemented and merged into the LightGraphs repository.
 
-- [Kruskal MST](https://github.com/SohamTamba/LightGraphs.jl/tree/kruskal_sort_IDS) **7.70x**
-- [Sequential/Parallel Johnson APSP](https://github.com/SohamTamba/LightGraphs.jl/tree/Soham/John_Shortest_Path) **2.10x** 
-- [Parallel Floyd Warshall APSP](https://github.com/SohamTamba/LightGraphs.jl/tree/Parallel_Floyd_Warshall) **1.27x**
-- [Parallel Bellman Ford SSSP](https://github.com/SohamTamba/LightGraphs.jl/tree/Parallel_Bellman_Ford) **1.61x**
-- [Parallel PageRank](https://github.com/SohamTamba/LightGraphs.jl/tree/Parallel_Page_Rank) **1.62x**
-- [PageRank](https://github.com/SohamTamba/LightGraphs.jl/tree/Seq_PageRank) **3.06x**
-- [Load-balanced Graph Partitioning](https://github.com/SohamTamba/LightGraphs.jl/tree/Parallel_Page_Rank)
-- [Prim MST](https://github.com/SohamTamba/LightGraphs.jl/tree/Prim_PQ) **7.60x**
-- [Dijkstra SSSP I](https://github.com/SohamTamba/LightGraphs.jl/tree/Dijkstra_Performance_Docs) **2.04x**
-- [Dijkstra SSSP II](https://github.com/SohamTamba/LightGraphs.jl/tree/Dijkstra_Allocations) **1.17x**
+- [Kruskal MST](https://github.com/SohamTamba/LightGraphs.jl/tree/kruskal_sort_IDS) 
+- [Sequential/Parallel Johnson APSP](https://github.com/SohamTamba/LightGraphs.jl/tree/Soham/John_Shortest_Path)  
+- [Parallel Floyd Warshall APSP](https://github.com/SohamTamba/LightGraphs.jl/tree/Parallel_Floyd_Warshall) 
+- [Parallel Bellman Ford SSSP](https://github.com/SohamTamba/LightGraphs.jl/tree/Parallel_Bellman_Ford) 
+- [Parallel PageRank](https://github.com/SohamTamba/LightGraphs.jl/tree/Parallel_Page_Rank)
+- [PageRank](https://github.com/SohamTamba/LightGraphs.jl/tree/Seq_PageRank) 
+- [Load-balanced Partitioning](https://github.com/SohamTamba/LightGraphs.jl/tree/Parallel_Page_Rank)
+- [Prim MST](https://github.com/SohamTamba/LightGraphs.jl/tree/Prim_PQ) 
+- [Dijkstra SSSP I](https://github.com/SohamTamba/LightGraphs.jl/tree/Dijkstra_Performance_Docs) 
+- [Dijkstra SSSP II](https://github.com/SohamTamba/LightGraphs.jl/tree/Dijkstra_Allocations) 
 
 # 2. Completed but not Merged
 
@@ -68,14 +115,14 @@ In this section, I will list the functions that I have implemented but was not a
 5. Minimum Vertex Coloring with exchange
 6. Vertex Connectivity
 
-- [Parallel Random Heuristics](https://github.com/SohamTamba/LightGraphs.jl/tree/genrate_reduce) **1.88x**
+- [Parallel Random Heuristics](https://github.com/SohamTamba/LightGraphs.jl/tree/genrate_reduce) 
 - [Karger Minimum Cut](https://github.com/SohamTamba/LightGraphs.jl/tree/Karger_min_cut)
 - [Multi-threaded Centrality Measures](https://github.com/SohamTamba/LightGraphs.jl/tree/Threaded_Centrality)
-1. Betweeness Centrality **1.98x**
-2. Closeness Centrality **2.18x**
-3. Stress Centrality **1.65x**
+1. Betweeness Centrality 
+2. Closeness Centrality 
+3. Stress Centrality 
 
-- [Parallel Breadth-First Search](https://github.com/SohamTamba/LightGraphs.jl/tree/Parallel_GDistances) **1.79x**
+- [Parallel Breadth-First Search](https://github.com/SohamTamba/LightGraphs.jl/tree/Parallel_GDistances)
 
 
 # 3. Completed but not Applicable
