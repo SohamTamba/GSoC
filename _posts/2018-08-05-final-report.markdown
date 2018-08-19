@@ -4,7 +4,7 @@ title:  "Final Report"
 date:   2018-08-05 14:10:51 +0530
 categories: GSoC
 tags: Final-Report
-description: Lock-free parallel BFS with dynamic Load-Balancing, Improved sequential PageRank, Implemented parallel random heuristics, Created Project Poster.
+description: Concise summary of tasks completed during GSoC 2018.
 ---
 
 This post shall be a brief summary on the work I have completed during my GSoC 2018 project titled "Parallel Graph Development". To obtain a more detailed description of my work, please refer to the posts previous to this.
