@@ -62,12 +62,11 @@ I tried to meet as many attendees as I could during the conference.
 
 I was able to obtain career advice and perspective from researchers present at the conference, such as [Pontus Stenetorp](https://pontus.stenetorp.se/) who works on Natural Language Processing. 
 
-I had a brief but memorable discussion with Gilbert Strang.
+I had a brief but memorable discussion with Gilbert Strang, a researcher working in Linear Algebra that has posted a huge amount of educational material online.
 
 <img src="{{ site.baseurl }}/assets/images/gil.jpeg" width="270" height="230" />
 
-
-
+Most of my interactions were with the other GSoC students present at the conference. Other than discussing our projects and careers, we would have an outing to a park or museum at the end of each day. 
 
 ## Acknowlegements
 
