@@ -7,7 +7,7 @@ tags: JuliaCon-2018
 description: JuliaCon 2018
 ---
 
-The coding period ends on 6<sup>th</sup> August. Julia's GSoC were invited to attend **JuliaCon 2018**. **The Julia Project** and **NUMFocus** sponsored our attendance. I was provided with **$1600** to cover my expenses and a free **JuliaCon ticket**.
+The coding period ends on 6<sup>th</sup> August. Julia's GSoC students were invited to attend **JuliaCon 2018**. **The Julia Project** and **NUMFocus** sponsored our attendance. I was provided with **$1600** to cover my expenses and a free **JuliaCon ticket**.
 
 JuliaCon 2018 was held in University College London from 7<sup>th</sup> August to 11<sup>th</sup> August.
 
@@ -20,7 +20,7 @@ My role was to create a poster that summarises my GSoC project. My poster can be
 3. Challenges faced and barriers to obtaining further improvements.
 4. Does my project support Out of Core Computation? (It does not)
 
-Judging from the audience's interest in **Out of Core Computation**, producing [external memory implementations](https://en.wikipedia.org/wiki/External_memory_algorithm) of graph algorithms might be a good idea **GSoC 2019** project. It would likely be popular with the community but check in with us through the slack channel at the time of applying.
+Judging from the audience's interest in **Out of Core Computation**, producing [external memory implementations](https://en.wikipedia.org/wiki/External_memory_algorithm) of graph algorithms might be a good idea for a **GSoC 2019** project. It would likely be popular with the community but check in with us through the slack channel at the time of applying.
 
 The answers to the first 3 questions can easily be found in this blog.
 
@@ -62,7 +62,7 @@ I tried to meet as many attendees as I could during the conference. The most val
 - Differential Equations
 - Compilers
 
-I was able to obtain career advice and perspective from researchers present at the conference, such as [Pontus Stenetorp](https://pontus.stenetorp.se/) who works on Natural Language Processing. 
+I was able to obtain career advice and perspective from researchers present at the conference, such as [Pontus Stenetorp](https://pontus.stenetorp.se/) and [Chris Rackauckas](http://chrisrackauckas.com). 
 
 I had a brief but memorable discussion with Gilbert Strang, a researcher working in Linear Algebra that has posted a huge amount of high quality educational material online. I also got a selfie with him. ^_^
 
@@ -73,3 +73,5 @@ Much of my interactions were with the other GSoC students present at the confere
 ## Acknowlegements
 
 I would like to thank `The Julia Project` and `NUMFocus` for sponsoring my attendance to JuliaCon 2018.
+
+Update: I passed all my GSoC evaluations. Thanks for reading.
