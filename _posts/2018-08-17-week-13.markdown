@@ -7,23 +7,20 @@ tags: JuliaCon-2018
 description: JuliaCon 2018
 ---
 
-The coding period ends on 6<sup>th</sup> August. Julia's GSoC were invited to attend JuliaCon 2018. The Julia Project and NUMFocus sponsored our attendance by providing $1600 to cover my expenses and a free JuliaCon ticket.
+The coding period ends on 6<sup>th</sup> August. Julia's GSoC were invited to attend **JuliaCon 2018**. **The Julia Project** and **NUMFocus** sponsored our attendance. I was provided with **$1600** to cover my expenses and a free **JuliaCon ticket**.
 
 JuliaCon 2018 was held in University College London from 7<sup>th</sup> August to 11<sup>th</sup> August.
 
 ## Poster Presentation
 
-
-<img src="{{ site.baseurl }}/assets/images/presentation.jpeg" width="230" height="230" />
-
-My role was to create a poster that summarises my project. My poster can be found [here](https://github.com/SohamTamba/GSoC/blob/gh-pages/Poster.pdf). The questions asked during my poster session we usually of the form:
+My role was to create a poster that summarises my GSoC project. My poster can be found in this [link](https://github.com/SohamTamba/GSoC/blob/gh-pages/Poster.pdf). The questions asked during my poster session were usually of the form:
 
 1. Clarification of the benchmarks.
 2. Modifications made to parallel implementations.
 3. Challenges faced and barriers to obtaining further improvements.
 4. Does my project support Out of Core Computation? (It does not)
 
-Judging from the audience's interest in Out of Core Computation, producing [external memory implementations](https://en.wikipedia.org/wiki/External_memory_algorithm) of graph algorithms might be a good idea GSoC 2019 project. It would likely be popular with the community but check in with us through the slack channel at that time.
+Judging from the audience's interest in **Out of Core Computation**, producing [external memory implementations](https://en.wikipedia.org/wiki/External_memory_algorithm) of graph algorithms might be a good idea **GSoC 2019** project. It would likely be popular with the community but check in with us through the slack channel at the time of applying.
 
 The answers to the first 3 questions can easily be found in this blog.
 
@@ -31,18 +28,19 @@ Example: **Parallel BFS**
 
 **Clarification of benchmarks**
 
-Benchmarks were conducted on *Twitter Social Circles* Graph, *Astro-Physics Collaboration* Graph, *Facebook Social Circles* Graph and the ratio of the run-time of the sequential implementation to the run-time of the parallel implementation (with dynamic load-balancing) was displayed.
+Benchmarks were conducted on *Twitter Social Circles* Graph, *Astro-Physics Collaboration* Graph, *Facebook Social Circles* Graph. The ratio of the run-time of the sequential implementation to the run-time of the parallel implementation (with dynamic load-balancing) on a machine with 4 cores was displayed. In hindsight, the poster could have conveyed the benchmarks a little clearer.
 
 **Modifications made to parallel implementations**
 
 For BFS, a single "current queue" and "next queue" is maintained. In each level iteration, the vertices in the "current queue" are iterated over and if any of these vertices have a neighbor has not been "seen" in a previous level iteration, it is added to the "next queue".
 
-
 For parallel BFS, each thread is provided its own "current queue" and "next queue". When a thread has iterated over all the vertices in its own "current queue", it tries to "steal" the vertices in an unfinished thread's "current queue".
 
 **Challenges faced and barriers to obtaining further improvements**
 
-Dynamic Memory Allocation (`push!`) is not thread-safe. This implies we cannot change the size of the queue during a level iteration and each queue is initialised to its maximum capacity. Hence, the memory use-age is `2*vertices(g)*nthreads()*size_of_vertex`. If Dynamic Memory Allocation were thread-safe, the memory use-age could have been reduced to ``2*vertices(g)*size_of_vertex`. This ruins the cache-efficiency of the implementation.
+Dynamic Memory Allocation (`push!(::Vector{Integer}, Integer)`) is not thread-safe. This implies we cannot change the size of the queue during a level iteration and each queue is initialised to its maximum capacity. Hence, the memory use-age is `2*vertices(g)*nthreads()*size_of_vertex`. If Dynamic Memory Allocation were thread-safe, the memory use-age could have been reduced to `2*vertices(g)*size_of_vertex`. This ruins the cache-efficiency of the implementation when `nthreads()` is too large.
+
+<img src="{{ site.baseurl }}/assets/images/presentation.jpeg" width="260" height="300" />
 
 ## Talks
 
@@ -58,15 +56,19 @@ Two talks that I recommend are:
 
 ## Interactions
 
-I tried to meet as many attendees as I could during the conference. 
+I tried to meet as many attendees as I could during the conference. The most valuable benefit I obtained from attending the conference was that I was able to meet the Julia community in person. Most of the attendees I met work on:
+
+- Machine Learning
+- Differential Equations
+- Compilers
 
 I was able to obtain career advice and perspective from researchers present at the conference, such as [Pontus Stenetorp](https://pontus.stenetorp.se/) who works on Natural Language Processing. 
 
-I had a brief but memorable discussion with Gilbert Strang, a researcher working in Linear Algebra that has posted a huge amount of educational material online.
+I had a brief but memorable discussion with Gilbert Strang, a researcher working in Linear Algebra that has posted a huge amount of high quality educational material online. I also got a selfie with him. ^_^
 
-<img src="{{ site.baseurl }}/assets/images/gil.jpeg" width="270" height="230" />
+<img src="{{ site.baseurl }}/assets/images/gil.jpeg" width="270" height="300" />
 
-Most of my interactions were with the other GSoC students present at the conference. Other than discussing our projects and careers, we would have an outing to a park or museum at the end of each day. 
+Much of my interactions were with the other GSoC students present at the conference. Other than discussing our projects and careers, we would have an outing to a park, museum at the end of each day. 
 
 ## Acknowlegements
 
