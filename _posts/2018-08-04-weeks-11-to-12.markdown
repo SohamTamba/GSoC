@@ -4,7 +4,7 @@ title:  "Weeks 11 to 12"
 date:   2018-08-04 14:10:51 +0530
 categories: GSoC
 tags: Optimistic-Concurrency-Control Load-Balancing Breadth-First-Search PageRank Greedy-Heuristics
-description: Lock-free parallel BFS with dynamic Load-Balancing, Improved sequential PageRank, Implemented parallel random heuristics, Created Project Poster.
+description: Lock-Free Parallel BFS with Dynamic Load-Balancing, Improved Sequential PageRank, Implemented Parallel Random Heuristics, Created Project Poster.
 ---
 # Tasks completed in weeks 11 to 12
 
@@ -20,121 +20,101 @@ description: Lock-free parallel BFS with dynamic Load-Balancing, Improved sequen
 **Refer to the previous post titled "Weeks 9 to 10", sections 3, 4, 5. This section is not intended to make sense without it.**
 
 I wrote a parallel version of breadth first search that uses dynamic load balancing.
-We require the thread `thread_id` to parition the vertices in a level (`cur_level_t`) and iterate over
-their outgoing edges (`outneighbors(g, cur_level_t[thread_id])`). When a thread `thread_id` has finished iterating over `outneighbors(g, cur_level_t[threadid])`, it should search for a thread `t` that has not finished iterating `cur_level_t[t]` and steal some vertices from `cur_level_t[t]`.
+The current level is partitioned into `nthreads()` vectors named `cur_level_t`. The thread number `thread_id` explores the `outneighbours` of the vertices in the partition `cur_level_t[thread_id]`. When a thread `thread_id` has finished working on `cur_level_t[thread_id]`, it should search for a thread `t` that has not finished iterating `cur_level_t[t]` and steal some vertices from `cur_level_t[t]`.
 
 {% highlight julia %}
 
 # Obtain equal sized partitions of sources and place partition
-# i into queue_list[i] and set rear_list[t] to its length.
+# i into queue_list[i].
 function partition_sources!(
     queue_list::Vector{Vector{T}},
-    rear_list::Vector{T}, 
-    sources::Vector{<:Integer}
+    sources::Vector{<:Integer},
+    empty_list::Vector{Bool}
     ) where T<:Integer
     
-    partitions = LightGraphs.unweighted_contiguous_partition(length(sources), length(rear_list))
+    partitions = LightGraphs.unweighted_contiguous_partition(length(sources), length(queue_list))
     for (i, p) in enumerate(partitions)
-        cur_level = queue_list[i]
-        for (j, ind) in enumerate(p)
-            cur_level[j] = sources[ind]
-        end
-        rear_list[i] = length(p)
+        append!(queue_list[i], sources[p])
+        empty_list[i] = isempty(p)
     end
 end
 
-function dynamic_parallel_gdistances(
+function dynamic_parallel_gdistances!(
     g::AbstractGraph{T}, 
-    sources::Vector{<:Integer}
-    queue_segment_size::Integer=20 # Number of vertices to "steal"
+    sources::Vector{<:Integer},
+    vert_level::Vector{T};
+    queue_segment_size::Integer=20
     ) where T <:Integer
  
-    n = nv(g)
+    nvg = nv(g)
     n_t = nthreads()
     segment_size = convert(T, queue_segment_size) # Type stability
+    fill!(vert_level, typemax(T))
+    visited = zeros(Bool, nvg)
 
-    visited = falses(n)
-
-    # push! is not thread safe.
-    # Memory overhead could be reduced.
-    # End of queue is marked with 0
-    next_level_t = [zeros(T, n+1) for _ in 1:n_t]
-    cur_level_t = [zeros(T, n+1) for _ in 1:n_t]
-
-    next_rear_t = Vector{T}(undef, n_t)
-    cur_rear_t = Vector{T}(undef, n_t)
+    # Level queues
+    next_level_t = [sizehint!(Vector{T}(), cld(nvg, n_t)) for _ in Base.OneTo(n_t)]
+    cur_level_t = [sizehint!(Vector{T}(), cld(nvg, n_t)) for _ in Base.OneTo(n_t)]
     cur_front_t = ones(T, n_t)
+    queue_explored_t = zeros(Bool, n_t)
 
-    vert_level = fill(typemax(T), n)
     for s in sources    
         visited[s] = true
         vert_level[s] = zero(T)
     end
-   
-    partition_sources!(cur_level_t, cur_rear_t, sources)
 
-    n_level = one(T)
+    partition_sources!(cur_level_t, sources, queue_explored_t)
     is_cur_level_t_empty = isempty(sources)
+    n_level = zero(T)
 
     while !is_cur_level_t_empty
+        n_level += one(T)
 
-        # let block used due to bug #15276
-        let n_level=n_level        
-        @threads for thread_id in 1:n_t
+        @threads for thread_id in Base.OneTo(n_t)
+            #Explore current level in parallel
             @inbounds next_level = next_level_t[thread_id]
-            @inbounds next_rear = zero(T)
 
-            local_n_level = n_level # For efficiency
-
-            #Iterate over next_level_t, starting with next_level_t[thread_id]
-            @inbounds for t_it in 1:n_t
-                t = mod(t_it+thread_id-2, n_t)+1 # t = t_self to n_t, 1 to t_self-1
-
+            @inbounds for t_range in (thread_id:n_t, 1:(thread_id-1)), t in t_range
+                queue_explored_t[t] && continue
                 cur_level = cur_level_t[t]
-                cur_rear = cur_rear_t[t]
+                cur_len = length(cur_level)
 
                 # Explore cur_level_t[t] one segment at a time.
                 while true 
                     local_front = cur_front_t[t]  # Data race, but first read always succeeds
                     cur_front_t[t] += segment_size # Failure of increment is acceptable
 
-                    (local_front > cur_rear || local_front <= zero(T)) && break
-                    
-                    # Explore cur_level until it hits a 0
-                    while cur_level[local_front] != zero(T)
+                    (local_front > cur_len || local_front <= zero(T)) && break                    
+                    while local_front <= cur_len && cur_level[local_front] != zero(T)
                         v = cur_level[local_front]
                         cur_level[local_front] = zero(T)
                         local_front += one(T)
 
-                        # Check if v was correctly read.
-                        (visited[v] && vert_level[v] == local_n_level-one(T)) || continue
-
+                        # Check if v was successfully read.
+                        (visited[v] && vert_level[v] == n_level-one(T)) || continue
                         for i in outneighbors(g, v)
-                            # Data race, but first read always succeeds
-                            if !visited[i] 
-                                vert_level[i] = local_n_level
+                            # Data race, but first read on visited[i] always succeeds
+                            if !visited[i]
+                                vert_level[i] = n_level
+                                #Concurrent visited[i] = true always succeeds
                                 visited[i] = true
-                                next_rear+=one(T)
-                                next_level[next_rear] = i
+                                push!(next_level, i)
                             end
                         end
                     end   
-                end        
+                end
+                queue_explored_t[t] = true        
             end      
-            @inbounds next_rear_t[thread_id] = next_rear 
-        end
         end
 
         is_cur_level_t_empty = true
-        @inbounds for t in 1:n_t
-            cur_rear_t[t], next_rear_t[t] = next_rear_t[t], cur_rear_t[t]
+        @inbounds for t in Base.OneTo(n_t)
             cur_level_t[t], next_level_t[t] = next_level_t[t], cur_level_t[t]
-
-            cur_front_t[t] = one(T) 
-            is_cur_level_t_empty = is_cur_level_t_empty && (cur_rear_t[t] == zero(T))
-        end            
-
-        n_level += one(T)       
+            cur_front_t[t] = one(T)
+            empty!(next_level_t[t])
+            queue_explored_t[t] = isempty(cur_level_t[t])
+            is_cur_level_t_empty = is_cur_level_t_empty && queue_explored_t[t]
+        end               
     end
 
     return vert_level
@@ -150,13 +130,11 @@ In the above implementation, each thread reads `v = cur_level_t[t]` and writes
 Each thread increments `local_front = cur_front_t[t]` by `queue_segment_size` so that the next read to `cur_front_t[t]` cannot claim read the vertices in indices 
 `local_front:local_front+queue_segment_size`.
 
-Due to the fact that `push!(next_level::Vector, i::T)` is not thread-safe, this implementation must incur a memory overhead of `2*nthreads()*sizeof(T)`. This could slow down the program by ruining its cache efficiency when many cores are being used.
-
-#### Data races on visited[t]
+**1. Data races on `visited[t]`**
 
 This is the same as the data races on visited in parallel BFS with static load balancing.
 
-#### Data race on `cur_front_t[t]`
+**2. Data race on `cur_front_t[t]`**
 
 ```
 Multiple threads: 
@@ -170,7 +148,7 @@ It is easy to see that if at least one thread reads `cur_front_t[t]` as `one(T)`
 then all the vertices in `cur_level_t[t]` will be explored.
 As a direct consequence of `assumption I` that this will happen.
 
-#### Data race on `cur_level_t[t]`
+**3. Data race on `cur_level_t[t]`**
 
 ```
 Thread 1: v = cur_level_t[local_front]
@@ -204,7 +182,7 @@ if !visited[i]
 Due to `assumption III`, it is not possible multiple thread  writes could have caused a corrupted 
 read on both `vert_level[i]` and `visited[i]` simultaneously.
 
-### Data race on `vert_level[i]`
+**3. Data race on `vert_level[i]`**
 
 ```
 Mutliple threads: vert_level[i] = local_n_level
@@ -310,7 +288,7 @@ function pagerank(g::AbstractGraph, α, n, ϵ)
 end
 {% endhighlight %}
 
-Although the same amount of "work" (number of operations) is being done, this implementation conducts memory operations more efficiently.
+Although the same amount of "work" (number of operations) is being done, this implementation conducts memory operations more cache-efficiently.
 
 ### Benchmarks
 

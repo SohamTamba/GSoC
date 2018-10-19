@@ -4,7 +4,7 @@ title:  "Weeks 9 to 10"
 date:   2018-07-23 14:10:51 +0530
 categories: GSoC
 tags: Optimistic-Concurrency-Control Load-Balancing Breadth-First-Search
-description: Optimistic Concurrency Control, Lock-free parallel BFS with static and dynamic Load-Balancing, Merged Pull Requests, Explored max-flow algorithms.
+description: Optimistic Concurrency Control, Lock-Free Parallel BFS with Static Load-Balancing, Merged Pull Requests, Explored Max-Flow Algorithms.
 ---
 # Tasks completed in weeks 9 to 10
 
@@ -301,7 +301,7 @@ function parallel_gdistances!(
     old_visited = falses(n)
     vert_level = fill(typemax(T), n)
 
-    next_level_t = [Vector{T}(undef, n+1) for _ in 1:nthreads()]
+    next_level_t = [Vector{T}(undef, cld(n, nthreads())+1 for _ in 1:nthreads()]
     vert_level = fill(typemax(T), n)
     cur_level = deepcopy(source)
     sizehint!(cur_level, n)
@@ -357,14 +357,11 @@ function parallel_gdistances!(
 
         n_level += one(T)
        sort!(cur_level, alg = QuickSort)
-
     end
 
     return vert_level
 end
 {% endhighlight %}
-
-Due to the fact that `push!(next_level::Vector, i::T)` is not thread-safe, this implementation must incur a memory overhead of `nthreads()*sizeof(T)`. This could slow down the program by ruining its cache efficiency when many cores are being used.
 
 #### **Data Race on visited**
 
@@ -389,8 +386,7 @@ concurrently. This is due to the direct consequence of `assumption I` in section
 From the above statement it is easy to prove that `vert_level[i]` will be correct at the end of the program, regardless of any race-conditions occuring on `visited[i]`.
 
 It is possible to avoid data races by providing each thread its own `visited` bit vector.
-But that would only reduce performance even more since a vertex that has been explored by one thread 
-during a level exploration **will** be considered unexplored by the other threads.
+But that would only reduce performance even more since a vertex that has been explored by one thread  during a level exploration **will** be considered unexplored by the other threads.
 
 ### Benchmarks
 

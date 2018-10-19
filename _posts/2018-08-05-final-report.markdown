@@ -141,11 +141,10 @@ will not be merged into LightGraphs. These are parallel implementations of cruci
 - [Parallel Prim MST](https://github.com/SohamTamba/LightGraphs.jl/tree/BatchPriorityQueue_Parallel_Dijkstra_Prim)
 - [Parallel Dijkstra SSSP](https://github.com/SohamTamba/LightGraphs.jl/tree/BatchPriorityQueue_Parallel_Dijkstra_Prim)
 
-The description of my attempt to produce a parallel implementation can be obtained in the appropriate
- posts of this blog.
+The description of my attempt to produce a parallel implementation can be obtained in the appropriate posts of this blog.
 
 Julia's shared memory parallelism functionality was introduced fairly recently. After it matures more, I would probably be possible to obtain good speed-ups through a parallel implementations.
 
 # Acknowledgements
 
-I would like to thank my mentor, **Divyansh Srivastav** and LightGraphs co-owner **Seth Bromberger** for reviewing my code and providing valuable suggestions to improve it.
+I would like to thank my mentor, **Divyansh Srivastava** and LightGraphs co-owner **Seth Bromberger** for reviewing my code and providing valuable suggestions to improve it.
