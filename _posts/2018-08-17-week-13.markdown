@@ -4,7 +4,7 @@ title:  "Week 13"
 date:   2018-08-17 14:10:51 +0530
 categories: GSoC
 tags: JuliaCon-2018
-description: Participated in JuliaCon 2018.
+description: Attended JuliaCon 2018, Presented Project Poster.
 ---
 
 The coding period ends on 6<sup>th</sup> August. Julia's GSoC students were invited to attend **JuliaCon 2018**. **The Julia Project** and **NUMFocus** sponsored our attendance. I was provided with **$1600** to cover my expenses and a free **JuliaCon ticket**.
