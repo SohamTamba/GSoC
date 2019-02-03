@@ -19,6 +19,10 @@
     <![endif]-->
     <link href="{{ site.baseurl }}/assets/css/main.css" rel="stylesheet" type="text/css">
 {% include isso-comments.html %}
+
+  {% if site.google_analytics and jekyll.environment == 'production' %}
+  {% include analytics.html %}
+  {% endif %}
 </head>
 
 <body>

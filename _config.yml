@@ -5,6 +5,7 @@ description: GSoC 2018
 
 # url is currently only used only for the RSS feed in feed.xml
 url: https://github.com/SohamTamba/GSoC
+google_analytics: UA-133714939-2
 
 # baseurl will often be '', but for a project page on gh-pages, it needs to
 # be the project name.
