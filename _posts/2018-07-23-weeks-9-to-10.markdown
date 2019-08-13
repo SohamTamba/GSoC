@@ -26,17 +26,17 @@ in previous posts merged into the main LightGraphs repository on Github. This in
 3. Improved Dijkstra.
 4. Greedy Heuristics.
 
-## 2. Explored parallel Max-Flow algorithms and Breadth-First Search
+## 2. Explored parallel Max-Flow algorithms and BFS
 
-At the time of writing my proposal, I had intended to use atomic operations to produce parallel implementations of Max-Flow finding algorithms such as Edmund-Karp, Dinic and Push-Relabel. 
-From my experiences described in previous posts, I know that it would be impossible to obtain an improvement in performance by relying on atomic operations. In fact, the [parallel Breadth-First Search implementation](https://github.com/JuliaGraphs/LightGraphs.jl/blob/master/src/Parallel/traversals/bfs.jl) in LightGraphs is an order of magnitude slower than the sequential implementation on a machine with 20 cores.
+At the time of writing my proposal, I had intended to use atomic operations to produce parallel implementations of algorithms computing Max-Flow in a flow network such as Edmund-Karp, Dinic and Push-Relabel. 
+From my experiences described in previous posts, I learned that it would be impossible to obtain an improvement in performance by relying on atomic operations. In fact, the [parallel Breadth-First Search implementation](https://github.com/JuliaGraphs/LightGraphs.jl/blob/master/src/Parallel/traversals/bfs.jl) in LightGraphs is an order of magnitude slower than the sequential implementation on a machine with 20 cores.
 
-After discussing this with my mentor, we decided to focus on parallelizing implementations of graph analysis algorithms without atomic operations or locks. I then came across teh technique of `optimistic concurrency control` (described below) and attempted to Breadth-First Search.
+After discussing this with my mentor, we decided to focus on parallelizing implementations of graph analysis algorithms without atomic operations or locks. I then came across the technique of `optimistic concurrency control` (described below) and attempted to implement parallel Breadth-First Search using it.
 
 ## 3. Optimistic concurrency control
 
 As we have mentioned the previous posts, if multiple processors have read/write or write/write
-access to the data at a common memory location, it can lead to unexpected results. As a result, we use locks or atomic
+access to the data at a common memory location, it can lead to unexpected an result. This is avouded locks or atomic
 instructions to maintain the correctness of the code. As mentioned in the above section 2, atomic operations and locks degrade the performance of the parallel code and we might end up with code that is slower than the sequential code.
 
 An approach to overcome this obstacle is to **allow data races** to occur and then recover from 
@@ -52,8 +52,7 @@ them. Hence, the **correctness** of the program is **not affected** by the data 
 **Interleaving of Machine Level Instruction** 
 
 These are race conditions that can occur due to
-the fact that a single Julia instruction is broken into multiple machine level instructions 
-before execution. For example:
+the fact that a single high level instruction consists of multiple machine level instructions. For example:
 
 **Julia Instruction:**
 
@@ -81,7 +80,7 @@ Increment R_2
 Write R_2 into a
 ```
 
-The programmer might expect `a` to be incremented by `2` but find it incremented by `1`.
+The programmer might expect `a` to be incremented by `2` but find it to be incremented by `1`.
 Since the `a += 1` instruction is broken up into multiple instructions, it is possible 
 the first read instruction sets `R_1` and `R_2` to the initial value of `a` (Lost update).
 
@@ -89,7 +88,7 @@ the first read instruction sets `R_1` and `R_2` to the initial value of `a` (Los
 **Interleaving of Memory Read/Write** 
 
 If the data size is greater than the word size then
-read/write operations will be borken upto into multiple machine level read/write operations.
+a single high level read/write operation will be borken upto into multiple machine level read/write operations.
 
 For example, If variable `a` is of size `16-bit` and the word size is `8-bit` then a single Julia write on `a` will consist of two machine level writes as a single machine level write can change `8 bits`. 
 
@@ -120,11 +119,6 @@ R_1[2] = 0x00
 The programmer might expect `R_1` to have the value `0xFFFF` or `0x0000`, but the interleaving
 of the instructions could leave it to have the value `0xFF00` or `0x00FF`.
 
-This should not be an issue because the register size of most computers is 64-bit.
-Some computers use 32-bit processors but even then, it is unheard of to use a common computer to process a graph with 2<sup>32</sup>-1 vertices, let alone 2<sup>64</sup>-1 vertices.
-
-Nevertheless, I will be considering this type of data race.
-
 ---
 **Compile Time Code Optimisation** 
 
@@ -139,6 +133,7 @@ for i in 1:length(dist)
 	dists[i] += A
 end
 {% endhighlight %}
+Thread 1: `a = 2`
 
 The compiler may modify this during compile time code optimisation as:
 
@@ -151,7 +146,7 @@ end
 {% endhighlight %}
 Thread 1: `a = 2`
 
-Hence, none of the changes made to `a` by other threads will be noted.
+Hence, none of the changes made to `a` by thread 1 will be noted by the other threads.
 
 Some languages allow data to be marked as `volatile` to inform the compiler that 
 the data may be modified externally and the data must be accessed. 
@@ -191,8 +186,9 @@ succeed when a write operation is not occuring concurrently.
 For example:
 
 {% highlight julia %}
-A = zeros(Int64, 100)
-indices = rand(1:100, 1000)
+n = 100
+A = zeros(Int64, n)
+indices = rand(1:n, 1000)
 @threads for i in indices
     A[i] = 1
 end
@@ -200,11 +196,11 @@ end
 
 At the end of this code the programmer can expect that:
 
-**a)** If `i` is in `indices` then at the end of the loop `A[i] = 1`.
+**a)** If `i` is in `indices` then at the end of the loop, `A[i] = 1`.
 
-**b)** If `i` is in `indices` then at the end of the loop `A[i] = 0`.
+**b)** If `i` is in `indices` then at the end of the loop, `A[i] = 0`.
 
-**Justification:** The machine level instructions of write are idempotent. 
+**Justification:** The machine level instructions of write are idempotent. Hence, interleaving of the instructions has no effect.
 
 It should be noted that this axiom is true only if the operation `A[i] = 1` only manipulates the data located at `A[i]`. If the  size of the elements of `A` are less than the word size, this will not be true.
 
@@ -231,7 +227,6 @@ function gdistances!(g::AbstractGraph{T}, sources::Vector{<:Integer}) where T<:I
     vert_level = fill(n, typemax(T)) # Minimum Hop Distances
 
     visited = falses(n)
-
     cur_level = Vector{T}()
     next_level = Vector{T}()
 
@@ -248,14 +243,14 @@ function gdistances!(g::AbstractGraph{T}, sources::Vector{<:Integer}) where T<:I
     while !isempty(cur_level)
         @inbounds for v in cur_level
             @inbounds @simd for i in outneighbors(g, v)
-                if !visited[i] # vert_level[i] = typemax(T)
+                if !visited[i] # i has not been explored yet
                     push!(next_level, i)
                     vert_level[i] = n_level
                     visited[i] = true
                 end
             end
         end
-        n_level += one(T)
+        n_level += one(T) #Increment the level
         empty!(cur_level)
         cur_level, next_level = next_level, cur_level
         sort!(cur_level) # For Cache Efficiency 
@@ -264,12 +259,8 @@ function gdistances!(g::AbstractGraph{T}, sources::Vector{<:Integer}) where T<:I
 end
 {% endhighlight %}
 
-As you can see, it explored the graph starting from the `sources`.
+As you can see, the program explored the graph starting from vertices in `sources`.
 When a vertex `i` was explored for the first time, its level (`vert_level[i]`) was set to the current iteration number (`n_level`).
-
-
-I thought optimistic concurrency control would be a good way to implement this algorithm because
-most graphs are sparse. Hence, the number of data races would be less.
 
 In the parallel implementation, each thread `t` its own `next_level` list (`next_level_t[t]`).
 In each iteration of the graph exploration, `cur_level` is partitioned to provide each thread its own set of vertices to explore (). 
@@ -279,8 +270,8 @@ and explores `i` in `outneighbors(g, v)`. If `i` has not been explored yet (`!vi
 
 {% highlight julia %}
 
+
 function unweighted_fast_partition!(num_items::Integer, part::Vector{UnitRange{T}}) where T<:Integer
-  
     prefix_sum = 0
     num = length(part)
     for t in 1:num
@@ -320,9 +311,9 @@ function parallel_gdistances!(
         
         @threads for v_set in partitions
             t = threadid()
-            @inbounds next_level = next_level_t[t] #Each thread gets its own next_level array
+            next_level = next_level_t[t] #Each thread gets its own next_level array
             
-            @inbounds for v in v_set
+            for v in v_set
                 for i in outneighbors(g, v)
                     if !visited[i]
                         visited[i] = true # Race condition
@@ -416,10 +407,10 @@ As you can see, BFS on `g = random_regular_graph(200000, 400)` obtained a good s
 
 ## 5. Lock-free parallel BFS with dynamic load balancing
 
-The idea is, each thread `t` will be provided its own `cur_level` array (`cur_level_t[t]`) as well as its own `next_level` array (`next_level_t[t]`). During each iteration of graph exploration,
+The idea is, each thread `t` will be provided its own `cur_level` array (`cur_level_t[t]`) as well as its own `next_level` array (`next_level_t[t]`). During each level exploration,
 each thread `t` will first explore all the vertices in `cur_level_t[t]`.
 Once it has finished exploring the vertices in `cur_level_t[t]`, the thread will steal
-vertices from other `cur_level` arrays and explore them.
+vertices from other `cur_level` arrays and explore them until there are no unexplored vertices left in `cur_level_t`.
 
 I will be refering to the BFS<sub>CL</sub> algorithm presented in the paper title
 [Avoiding Locks and Atomic Instructions in Shared-Memory Parallel BFS Using Optimistic Parallelization](https://www.computer.org/csdl/proceedings/ipdpsw/2013/4979/00/4979b628-abs.html) by J. Tithi et al. As one can expect, this implementation will be much more complicated than the statically load balanced implementation.
