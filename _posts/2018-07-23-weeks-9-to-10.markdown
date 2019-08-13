@@ -16,24 +16,24 @@ description: Optimistic Concurrency Control, Lock-Free Parallel BFS with Static 
 
 # Details
 
-## 1. Merged Pull Requests
+## 1. Merged pull requests
 
 As we are nearing the end of GSoC, I have been spending more time on getting the code mentioned
-in previous posts merged into the main LightGraphs repository. This includes:
+in previous posts merged into the main LightGraphs repository on Github. This includes:
 
 1. Parallel Pagerank with degree based partitioning.
 2. Parallel Bellman Ford.
 3. Improved Dijkstra.
 4. Greedy Heuristics.
 
-## 2. Explored Parallel Max-Flow Algorithms and Breadth-First Search
+## 2. Explored parallel Max-Flow algorithms and Breadth-First Search
 
 At the time of writing my proposal, I had intended to use atomic operations to produce parallel implementations of Max-Flow finding algorithms such as Edmund-Karp, Dinic and Push-Relabel. 
 From my experiences described in previous posts, I know that it would be impossible to obtain an improvement in performance by relying on atomic operations. In fact, the [parallel Breadth-First Search implementation](https://github.com/JuliaGraphs/LightGraphs.jl/blob/master/src/Parallel/traversals/bfs.jl) in LightGraphs is an order of magnitude slower than the sequential implementation on a machine with 20 cores.
 
 After discussing this with my mentor, we decided to focus on parallelizing implementations of graph analysis algorithms without atomic operations or locks. I then came across teh technique of `optimistic concurrency control` (described below) and attempted to Breadth-First Search.
 
-## 3. Optimistic Concurrency Control
+## 3. Optimistic concurrency control
 
 As we have mentioned the previous posts, if multiple processors have read/write or write/write
 access to the data at a common memory location, it can lead to unexpected results. As a result, we use locks or atomic
@@ -55,35 +55,35 @@ These are race conditions that can occur due to
 the fact that a single Julia instruction is broken into multiple machine level instructions 
 before execution. For example:
 
-Julia Instruction:
+**Julia Instruction:**
 
-Thread 1: `A += 1`
+Thread 1: `a += 1`
 
-Thread 2: `A += 1`
+Thread 2: `a += 1`
 
-Machine Level Instructions:
+**Machine Level Instructions:**
 
 Thread 1: 
 ```
-Read A into R_1
+Read a into R_1
 
 Increment R_1
 
-Write R_1 into A
+Write R_1 into a
 ```
 
 Thread 2: 
 ```
-Read A into R_2
+Read a into R_2
 
 Increment R_2
 
-Write R_2 into A
+Write R_2 into a
 ```
 
-The programmer might expect `A` to be incremented by `2` but find it incremented by `1`.
-Since the `A += 1` instruction is broken up into multiple instructions, it is possible 
-the first read instruction sets `R_1` and `R_2` to the initial value of `A` (Lost update).
+The programmer might expect `a` to be incremented by `2` but find it incremented by `1`.
+Since the `a += 1` instruction is broken up into multiple instructions, it is possible 
+the first read instruction sets `R_1` and `R_2` to the initial value of `a` (Lost update).
 
 ---
 **Interleaving of Memory Read/Write** 
@@ -91,17 +91,17 @@ the first read instruction sets `R_1` and `R_2` to the initial value of `A` (Los
 If the data size is greater than the word size then
 read/write operations will be borken upto into multiple machine level read/write operations.
 
-For example, If variable `A` is of size `16-bit` and the word size is `8-bit` then a single Julia write on `A` will consist of two machine level writes as a single machine level write can change `8 bits`. 
+For example, If variable `a` is of size `16-bit` and the word size is `8-bit` then a single Julia write on `a` will consist of two machine level writes as a single machine level write can change `8 bits`. 
 
 Consider a machine with 8 bit word size.
 
-Julia Instructions:
+**Julia Instructions:**
 
 Thread 1: ```R_1 = 0xFFFF```
 
 Thread 2: ```R_1 = 0x0000```
 
-Machine Level Instructions:
+**Machine Level Instructions:**
 
 Thread 1:
 ```
@@ -133,7 +133,7 @@ may modify the code to improve performance without considering the effect of oth
 modifying the data. For example,
 
 {% highlight julia %}
-A = 1
+a = 1
 dists = zeros(Int64, n)
 for i in 1:length(dist)
 	dists[i] += A
@@ -143,14 +143,15 @@ end
 The compiler may modify this during compile time code optimisation as:
 
 {% highlight julia %}
-A = 1
+a = 1
 dists = zeros(Int64, n)
 for i in 1:length(dist)
 	dists[i] += 1
 end
 {% endhighlight %}
+Thread 1: `a = 2`
 
-Hence, none of the changes made to `A` by other threads will be noted.
+Hence, none of the changes made to `a` by other threads will be noted.
 
 Some languages allow data to be marked as `volatile` to inform the compiler that 
 the data may be modified externally and the data must be accessed. 
@@ -158,11 +159,11 @@ Julia does not have this functionality.
 
 **Note:** It should be kept in mind that the compiler may reorder read/write operations to improve efficiency.
 
-### Axiom
+### Axioms
 
 For the remainder of this blog post, I will be assuming that the following statements are true:
 
-**I.** `If` multiple threads have read/write access to a variable and every write is preceded by a read `then` the first read will obtain the correct value.
+**I)** `If` multiple threads have read/write access to a variable and every write is preceded by a read `then` the first read will obtain the correct value.
 
 For example:
 
@@ -180,12 +181,12 @@ end
 
 At the end of this code, at least one entries in `a_read_true` will be set to true.
 This is due to the fact that the first thread to have executed the `if a`
-had performed read on `A` while no concurrent write was taking place on `a`. 
+had performed a read operation on `a` while no concurrent write was taking place on `a`. 
 
 **Justification:** This is a reasonable assumption because the programmer always expects a read operation to 
-succeed when a WRITE operation is not occuring concurrently.
+succeed when a write operation is not occuring concurrently.
 
-**II.** If multiple threads write the same value into a variable then at the end of the multithreaded loop, the variable will have the common value.
+**II)** If multiple threads write the same value into a variable then at the end of the multithreaded loop, the variable will have the common value.
 
 For example:
 
@@ -199,15 +200,15 @@ end
 
 At the end of this code the programmer can expect that:
 
-a) If `i` is in `indices` then at the end of the loop `A[i] = 1`.
+**a)** If `i` is in `indices` then at the end of the loop `A[i] = 1`.
 
-b) If `i` is in `indices` then at the end of the loop `A[i] = 0`.
+**b)** If `i` is in `indices` then at the end of the loop `A[i] = 0`.
 
-**Justification:** Write is idempotent.
+**Justification:** The machine level instructions of write are idempotent. 
 
 It should be noted that this axiom is true only if the operation `A[i] = 1` only manipulates the data located at `A[i]`. If the  size of the elements of `A` are less than the word size, this will not be true.
 
-**III.** If a write operation does not change the value of a variable then a concurrent read is safe.
+**III)** If a write operation does not change the value of a variable then a concurrent read is safe.
 
 For example:
 
@@ -217,7 +218,7 @@ Thread 2: `b = a`
 
 The programmer can expect that `b` will read `a` as `100`.
 
-**Justification:** This is a reasonable assumption because even if machine level instructions are interleaved, the value of `a` will not change throughout the write.
+**Justification:** This is a reasonable assumption because even if machine level instructions are interleaved, the value of `a` will not change throughout the write operation.
 
 ## 4. Lock-free parallel BFS with static load balancing
 
@@ -263,19 +264,17 @@ function gdistances!(g::AbstractGraph{T}, sources::Vector{<:Integer}) where T<:I
 end
 {% endhighlight %}
 
-As you can see, it explored the graph starting from the `sources` one level at a time.
-Vertices of level `L` is the set of vertices (of `g`) that have a minimum hop distance
-of `L` from `sources`. 
+As you can see, it explored the graph starting from the `sources`.
+When a vertex `i` was explored for the first time, its level (`vert_level[i]`) was set to the current iteration number (`n_level`).
 
 
 I thought optimistic concurrency control would be a good way to implement this algorithm because
 most graphs are sparse. Hence, the number of data races would be less.
 
-In the parallel implementation, each thread `t` its own `next_level` array (`next_level_t[t]`).
-In each iteration of the graph exploration, `cur_level` is partitioned into
-`nthreads()` sets. 
+In the parallel implementation, each thread `t` its own `next_level` list (`next_level_t[t]`).
+In each iteration of the graph exploration, `cur_level` is partitioned to provide each thread its own set of vertices to explore (). 
 
-Each thread `t` iterates over a vertex `v` in its own partition
+Each thread `t` iterates over a vertex `v` in its own partition 
 and explores `i` in `outneighbors(g, v)`. If `i` has not been explored yet (`!visited[i]`) then the thread pushes `i` into `next_level_t[t]`.
 
 {% highlight julia %}
@@ -299,18 +298,14 @@ function parallel_gdistances!(
  
     n = nv(g)
 
-    visited = falses(n)
-    old_visited = falses(n)
+    visited = zeros(Bool, n)
+    old_visited = zeros(Bool, n)
     vert_level = fill(typemax(T), n)
 
-    next_level_t = [Vector{T}(undef, cld(n, nthreads())+1 for _ in 1:nthreads()]
+    next_level_t = [Vector{T}() for _ in 1:nthreads()]
     vert_level = fill(typemax(T), n)
     cur_level = deepcopy(source)
     sizehint!(cur_level, n)
-
-    for t in 1:nthreads()
-        next_level_t[t][1] = zero(T)
-    end
 
     for s in source
         visited[s] = old_visited[s] = true
@@ -323,72 +318,61 @@ function parallel_gdistances!(
     while !isempty(cur_level)
         unweighted_partition!(partitions, length(cur_level))
         
-        @threads for ind_set in partitions
+        @threads for v_set in partitions
             t = threadid()
-            @inbounds next_level = next_level_t[t]
-            q_rear = zero(T) 
+            @inbounds next_level = next_level_t[t] #Each thread gets its own next_level array
             
-            @inbounds for ind in ind_set
-                v = cur_level[ind]
+            @inbounds for v in v_set
                 for i in outneighbors(g, v)
                     if !visited[i]
                         visited[i] = true # Race condition
-                        next_level[ q_rear+=one(T) ] = i
+                        push!(next_level, i)
                     end
                 end
             end
 
-            @inbounds next_level[q_rear+one(T)] = zero(T)  
         end
 
         empty!(cur_level)
         @inbounds for t in 1:nthreads()
-            Q = next_level_t[t]
 
-            for v in Q
-                (v == zero(T)) && break
+            for v in next_level_t[t]
                 if !old_visited[v] 
+                    old_visited[v] = true
                     push!(cur_level, v)
-                    old_visited[v] = visited[v] = true
-                    vert_level[v] = min(vert_level[v], n_level)
+                    vert_level[v] = n_level
                 end
             end
-            Q[1] = zero(T)
         end
 
 
         n_level += one(T)
-       sort!(cur_level, alg = QuickSort)
+       sort!(cur_level, alg = QuickSort) #Cache Efficiency
     end
 
     return vert_level
 end
 {% endhighlight %}
 
-#### **Data Race on visited**
+The only data that multiple threads have read/write access to is the `visited` array.
 
-Multiple threads have read/write access to `visited::BitArray{1}`.
-Hence, it is possible that during a level exploration, multiple threads could have pushed
-the same vertex `i` into their queue. That could lead to exploring `i` but it obviously
-does not affect the correctness of the code.
+#### **Data Races**
+
+A data race can occur if 2 threads are iterating exploring vertex `u`, `w` and a vertex `i` is present in both `outneighbors(g, u)` and `outneighbors(g, w)`.
 
 {% highlight julia %}
 for i in outneighbors(g, v)
     if !visited[i]
         visited[i] = true # Race condition
-        next_level[ q_rear+=one(T) ] = i
+        push!(next_level, i)
     end
 end
 {% endhighlight %}
 
-**It is easy to see that:** The first time in the program the statement `if visited[i]` is being
-executed (For any `i` in `vertices(g)`), a write operation on `visited[i]` cannot be occuring
-concurrently. This is due to the direct consequence of `assumption I` in section **Optimistic Concurrency Control**.
+It can be inferred from axiom I & II that these data races do not compromise the correctness of the program.
 
-From the above statement it is easy to prove that `vert_level[i]` will be correct at the end of the program, regardless of any race-conditions occuring on `visited[i]`.
+Note that this implementation uses a boolean array, whereas the sequential implementation uses a bit array. This is to avoid the complication explained in axiom II which occurs when write operations are not independent.
 
-It is possible to avoid data races by providing each thread its own `visited` bit vector.
-But that would only reduce performance even more since a vertex that has been explored by one thread  during a level exploration **will** be considered unexplored by the other threads.
 
 ### Benchmarks
 
@@ -428,49 +412,14 @@ But that would only reduce performance even more since a vertex that has been ex
 ---
 
 As you can see, BFS on `g = random_regular_graph(200000, 400)` obtained a good speed up while BFS on
-`g = loadsnap(:ego_twitter_u)` showed almost no difference. This is likely because the `random_regular_graph` had better partitioning.
+`g = loadsnap(:ego_twitter_u)` showed almost no difference. This is likely because the degree distribution of the the latter graph is less uniform that the former and hence, leads to poor load balancing. Using better partitioning techniques such as `optimal_weighted_partition` to obtain better load balancing provides no benefit as the partitioning runtime exceeds the BFS runtime, making it impossible to improve performance. I will try to overcome this issue using dynamic load balancing techniques.
 
 ## 5. Lock-free parallel BFS with dynamic load balancing
 
-
-### *Why use Dynamic Loading Balancing?*
-
-
-If you can recall the `parallel_page_rank` code I obtained a good performance improvement
- using `optimal_weighted_partition` to statically partition `vertices(g)`.
-
-Using `greedy_weighted_partition` or `optimal_weighted_partition` only increased the run-time
-of the static load balanced parallel BFS code presented in the previous section.
-
-There are two reasons we cannot use the same strategy.
-
-*Firstly*, BFS is a linear time algorithm and each iteration will need to be partitioned. If partitioning `cur_level` at the beginning of each graph graph exploration phase takes alot of time then we will not obtain any speed up.
-
-*Secondly*, Unlike Page Rank, it is impossible to efficiently estimate the time required to 
-iterate over the edges of the vertex. In the page rank algorithm, the time taken to iterate over an edge is more or less constant as the same instructions are executed.
-
-Consider the following block of code:
-
-{% highlight julia %}
-@inbounds @simd for i in outneighbors(g, v)
-    if !visited[i] # vert_level[i] = typemax(T)
-        push!(next_level, i)
-        vert_level[i] = n_level
-        visited[i] = true
-    end
-end
-{% endhighlight %}
-
-If `visited[i]` is `true` then the time taken to iterate over edge `u -> i` is much lesser
-than what it would have been if `visited[i]` is `false`.
-
-### *Broad strategy*
-
-The idea is, each thread `t` will be provided its own `cur_level` array (`cur_level_t[t]`) as well as its own `next_level` array. During each iteration of graph exploration,
+The idea is, each thread `t` will be provided its own `cur_level` array (`cur_level_t[t]`) as well as its own `next_level` array (`next_level_t[t]`). During each iteration of graph exploration,
 each thread `t` will first explore all the vertices in `cur_level_t[t]`.
-Once it is finished exploring the vertices in `cur_level_t[t]`, it will iterate over
-all the the `cur_level_t` and if it finds an array `cur_level_t[j]` that has unexplored vertices,
-it will remove some vertices in `cur_level_t[j]` and then explore them.
+Once it has finished exploring the vertices in `cur_level_t[t]`, the thread will steal
+vertices from other `cur_level` arrays and explore them.
 
 I will be refering to the BFS<sub>CL</sub> algorithm presented in the paper title
-[Avoiding Locks and Atomic Instructions in Shared-Memory Parallel BFS Using Optimistic Parallelization](https://www.computer.org/csdl/proceedings/ipdpsw/2013/4979/00/4979b628-abs.html).
+[Avoiding Locks and Atomic Instructions in Shared-Memory Parallel BFS Using Optimistic Parallelization](https://www.computer.org/csdl/proceedings/ipdpsw/2013/4979/00/4979b628-abs.html) by J. Tithi et al. As one can expect, this implementation will be much more complicated than the statically load balanced implementation.
