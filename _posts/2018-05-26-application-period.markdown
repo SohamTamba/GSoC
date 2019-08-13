@@ -12,7 +12,7 @@ description: Choose a Project, Made Contributions, Wrote a Proposal, Got Accepte
 
 # Introduction
 
-GSoC (Google Summer of Code) is a program in which, students provide open source organizations with a proposal that suggests improvements for their software. If accepted, the student will spend 3 months implementing (coding) their proposal, while being advised by a mentor from the organization. I would break up my activities during this time as:
+GSoC (Google Summer of Code) is a program in which, students provide open source organizations with a proposal that suggests improvements to their software. If accepted, the student will spend 3 months implementing (coding) their proposal, while being advised by a mentor from the organization. I would break up my activities during this time as:
 
 1. Choose a mentor organization and project.
 2. Interact with the community and contribute.
@@ -22,7 +22,7 @@ GSoC (Google Summer of Code) is a program in which, students provide open source
 # Choosing a Project
 Firstly, prospective applicants must choose a mentor organization from the list published in the [GSoC website](https://summerofcode.withgoogle.com/). On 12<sup>th</sup> February, the finalized list of mentor organizations for 2018 was published.
 
-I was interested in a `HPC` (High Performanc Computing) project. I had previously come across `Julia` while skimming through the profiles of professors and graduate students and thought I would likely a suitable project. While going through the [Julia's HPC projects](https://julialang.org/soc/projects/hpc.html), I came across the `Parallel Graph Development` project which meant creating parallel implementation of the graph functions present in [LightGraphs.jl](https://github.com/JuliaGraphs/LightGraphs.jl). 
+I was interested in a `HPC` (High Performance Computing) project. I had previously come across `Julia` while skimming through the profiles of professors and graduate students and thought I would likely find a suitable project. While going through the [Julia's HPC projects](https://julialang.org/soc/projects/hpc.html), I came across the `Parallel Graph Development` project which meant creating a parallel implementation of the graph functions present in [LightGraphs.jl](https://github.com/JuliaGraphs/LightGraphs.jl). 
 
 I was already familiar with most of the algorithms implemented in the library, which lead me to believe I could make useful contributions to it. I literally chose the second project I explored.
 
@@ -47,20 +47,20 @@ There are several NP-Hard problems that occur in practice often. Fast algorithms
 
   * **Creating parallel implementations for algorithms that are inherently slow**
 
-The issue with parallel computing is the overheads caused due to communication between processors could lead to an overall reduction in performance. Algorithms that inherently require more work (relative to the input size) will usually have more scope for improvement through parallelization. Since the algorithms are usually slow, users would be more eager to have a parallel implementation of it. Eg. Floyd Warshall's shortest path is inherently slow because it requires a cubic number of operations with respect to the input.
+The issue with parallel computing is the overheads caused due to communication between processes could lead to an overall reduction in performance. Algorithms that inherently require more work (relative to the input size) will usually have more scope for improvement through parallelization. Since the algorithms are usually slow, users would be more eager to have a parallel implementation of it. Eg. Floyd Warshall's shortest path is inherently slow because it requires a cubic number of operations with respect to the input.
 
   * **Creating parallel implementations for algorithms that are important**
 
-Algorithms such as Dijkstra's Shortest Path, Kruskal's minimum spanning tree are inherently fast. But they have several important applications. Hence, parallel implementation would be worthwhile if it produced even a modest speed-up. 
+Algorithms such as Dijkstra's Shortest Path, Kruskal's minimum spanning tree are inherently fast. But they have several important applications and hence, parallel implementation would be worthwhile if it produced even a modest speed-up. 
 
 # Finding a Committed Mentor
 
-Although I listed `Find a committed mentor` last in my sequence of activities, I would suggest doing it sooner; I later found out that your chances of being acceped fall drastically if a member of the organization has not agreed to work with you before the application period ends. This was almost the case for me: I announced my interest in the project in their `Slack` channel only 2 weeks before the application period ended (First month on PR's) and found out that almost everyone was too busy that summer to mentor a student. Luckily, [Divanyansh Srivastava](https://github.com/somil55) came to the rescue in the last few days.
+Although I listed `Find a committed mentor` last in my sequence of activities, I would suggest doing it sooner; I later found out that your chances of being acceped fall drastically if a member of the organization has not agreed to work with you before the application period ends. In hindsight, this makes sense: What's the point of having a stellar application if is interested in your project. I almost suffered this fate: I announced my interest in the project in Julia's `Slack` channel only 2 weeks before the application period ended (First month on PR's) and found out that almost everyone was too busy that summer to mentor a student. Luckily, [Divanyansh Srivastava](https://github.com/somil55) came to the rescue in the last few days.
 
 # Lessons Learned
   * **Spend more time on the proposal and less time on pull requests**
 
-Out of the 1.5 months long application period, I spent 1 month making pull requests and only 2 weeks writing the proposal. Trust me, 2 weeks is not enough time to produce a proposal that concisely and clearly explains every detail of your project project. Of course, communicating with the organization before the application would give you a good head start.
+Out of the 1.5 months long application period, I spent 1 month making pull requests and only 2 weeks writing the proposal. Trust me, 2 weeks is not enough time to produce a proposal that concisely and clearly explains every detail of your project project. Of course, communicating with the organization before the beginning of the application period would also be helpful.
 
   * **Communicate with prospective mentors and the community as soon as possible**
 
