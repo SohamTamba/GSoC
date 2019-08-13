@@ -18,7 +18,7 @@ description: Optimistic Concurrency Control, Lock-Free Parallel BFS with Static 
 
 ## 1. Merged Pull Requests
 
-As we are nearing the end of GSoC, I have been spending more time getting the code mentioned
+As we are nearing the end of GSoC, I have been spending more time on getting the code mentioned
 in previous posts merged into the main LightGraphs repository. This includes:
 
 1. Parallel Pagerank with degree based partitioning.
@@ -26,28 +26,21 @@ in previous posts merged into the main LightGraphs repository. This includes:
 3. Improved Dijkstra.
 4. Greedy Heuristics.
 
-We decided to break the Greedy Heuristics PR into smaller ones.
-Merging 20 different new functions is too troublesome.
-
-## 2. Explored Max-Flow Algorithms
+## 2. Explored Parallel Max-Flow Algorithms and Breadth-First Search
 
 At the time of writing my proposal, I had intended to use atomic operations to produce parallel implementations of Max-Flow finding algorithms such as Edmund-Karp, Dinic and Push-Relabel. 
-From experiences explained in previous posts, I know that it would be impossible to obtain 
-an improvement in performance by relying on atomic operations.
+From my experiences described in previous posts, I know that it would be impossible to obtain an improvement in performance by relying on atomic operations. In fact, the [parallel Breadth-First Search implementation](https://github.com/JuliaGraphs/LightGraphs.jl/blob/master/src/Parallel/traversals/bfs.jl) in LightGraphs is an order of magnitude slower than the sequential implementation on a machine with 20 cores.
 
-After discussing this with my mentor, we decided to move on to improving the performance of other core functionalities of LightGraphs.
+After discussing this with my mentor, we decided to focus on parallelizing implementations of graph analysis algorithms without atomic operations or locks. I then came across teh technique of `optimistic concurrency control` (described below) and attempted to Breadth-First Search.
 
 ## 3. Optimistic Concurrency Control
 
 As we have mentioned the previous posts, if multiple processors have read/write or write/write
-access to common data, it can lead to unexpected results. As a result, we use locks or atomic
-instructions to maintain the correctness of the code. As mentioned in the above section (Explored 
-Max-Flow Algorithms), atomic operations and locks degrade the performance of the parallel code and we might end up with code that is slower than the sequential code.
+access to the data at a common memory location, it can lead to unexpected results. As a result, we use locks or atomic
+instructions to maintain the correctness of the code. As mentioned in the above section 2, atomic operations and locks degrade the performance of the parallel code and we might end up with code that is slower than the sequential code.
 
 An approach to overcome this obstacle is to **allow data races** to occur and then recover from 
-them. i.e., maintain that the **correctness** of the code is **not affected** by the data races
-but data races will usually decrease the performance of the program. Hence, when data races are
-rare, it can obtain good performance.
+them. Hence, the **correctness** of the program is **not affected** by the data races.
 
 ### Examples of Race Conditions
 
@@ -56,7 +49,9 @@ rare, it can obtain good performance.
 3. Compile Time Code Optimisation.
 
 ---
-**Interleaving of Machine Level Instruction:** These are race conditions that can occur due to
+**Interleaving of Machine Level Instruction** 
+
+These are race conditions that can occur due to
 the fact that a single Julia instruction is broken into multiple machine level instructions 
 before execution. For example:
 
@@ -86,17 +81,19 @@ Increment R_2
 Write R_2 into A
 ```
 
-The programmer may be expecting `A` to be incremented by `2` but find it incremented by `1`.
+The programmer might expect `A` to be incremented by `2` but find it incremented by `1`.
 Since the `A += 1` instruction is broken up into multiple instructions, it is possible 
-the first read instruction sets `R_1` and `R_2` to the same value (Initial value of `A`).
+the first read instruction sets `R_1` and `R_2` to the initial value of `A` (Lost update).
 
 ---
-**Interleaving of Memory Read/Write:** If the data size is greater than the register size then
+**Interleaving of Memory Read/Write** 
+
+If the data size is greater than the word size then
 read/write operations will be borken upto into multiple machine level read/write operations.
 
-For example, If variable `A` is of size `64-bit` and the register size is `32-bit` then a single Julia write on `A` will consist of two machine level writes as a single machine level write can change `32 bits`. 
+For example, If variable `A` is of size `16-bit` and the word size is `8-bit` then a single Julia write on `A` will consist of two machine level writes as a single machine level write can change `8 bits`. 
 
-Consider a machine with 8 bit registers.
+Consider a machine with 8 bit word size.
 
 Julia Instructions:
 
@@ -120,8 +117,8 @@ R_1[1] = 0x00
 R_1[2] = 0x00
 ```
 
-The programmer may expect `R_1` to have the value `0xFFFF` or `0x0000` but the interleaving
-of the instructions could leave it to also have the value `0xFF00` or `0x00FF`.
+The programmer might expect `R_1` to have the value `0xFFFF` or `0x0000`, but the interleaving
+of the instructions could leave it to have the value `0xFF00` or `0x00FF`.
 
 This should not be an issue because the register size of most computers is 64-bit.
 Some computers use 32-bit processors but even then, it is unheard of to use a common computer to process a graph with 2<sup>32</sup>-1 vertices, let alone 2<sup>64</sup>-1 vertices.
@@ -129,7 +126,9 @@ Some computers use 32-bit processors but even then, it is unheard of to use a co
 Nevertheless, I will be considering this type of data race.
 
 ---
-**Compile Time Code Optimisation:** During the code optimisation phase of compilation, the compiler
+**Compile Time Code Optimisation** 
+
+During the code optimisation phase of compilation, the compiler
 may modify the code to improve performance without considering the effect of other threads
 modifying the data. For example,
 
@@ -157,35 +156,36 @@ Some languages allow data to be marked as `volatile` to inform the compiler that
 the data may be modified externally and the data must be accessed. 
 Julia does not have this functionality.
 
-### Assumptions
+**Note:** It should be kept in mind that the compiler may reorder read/write operations to improve efficiency.
 
-The **main assumption** I will be making while writing code using optimistic concurrency 
-control are:
+### Axiom
 
-**I.** If multiple threads have read/write access to a variable and the first read before
-preceeds the first write ever then the first read will obtain the correct value.
+For the remainder of this blog post, I will be assuming that the following statements are true:
+
+**I.** `If` multiple threads have read/write access to a variable and every write is preceded by a read `then` the first read will obtain the correct value.
 
 For example:
 
 {% highlight julia %}
-atleast_one_in = false
-is_in_if = falses(nthreads())
-@threads for thread in 1:nthreads()
-    if !atleast_one_in
-        atleast_one_in = true
-        is_in_if[thread] = true
+a = true
+n_t = nthread()
+a_read_true = falses(n_t)
+@threads for thread in 1:n_t
+    if a
+        a = false
+        a_read_true[thread] = true
     end
 end
 {% endhighlight %}
 
-At the end of the loop, at least one entries in `is_in_if` will be set to true.
-This is due to the fact that the first thread to have executed the `if !atleast_one_in`
-had performed READ on `atleast_one_in` while no concurrent WRITE was taking place.
+At the end of this code, at least one entries in `a_read_true` will be set to true.
+This is due to the fact that the first thread to have executed the `if a`
+had performed read on `A` while no concurrent write was taking place on `a`. 
 
-This is a reasonable assumption because the programmer always expects a READ operation to 
+**Justification:** This is a reasonable assumption because the programmer always expects a read operation to 
 succeed when a WRITE operation is not occuring concurrently.
 
-**II.** If multiple threads write the same value into a variable then at the end of the threaded loop, the variable will have the common value.
+**II.** If multiple threads write the same value into a variable then at the end of the multithreaded loop, the variable will have the common value.
 
 For example:
 
@@ -196,26 +196,28 @@ indices = rand(1:100, 1000)
     A[i] = 1
 end
 {% endhighlight %}
-If `i` in `indices` then at the end of the loop `A[i] = 1`.
 
-If `i` in `indices` then at the end of the loop `A[i] = 0`.
+At the end of this code the programmer can expect that:
 
-This is a reasonable assumption because the programmer always expects the changes made
-in the threaded loop to be present after the threaded has been exited. I also discussed
-this with the members of Julia's parallel group.
+a) If `i` is in `indices` then at the end of the loop `A[i] = 1`.
+
+b) If `i` is in `indices` then at the end of the loop `A[i] = 0`.
+
+**Justification:** Write is idempotent.
+
+It should be noted that this axiom is true only if the operation `A[i] = 1` only manipulates the data located at `A[i]`. If the  size of the elements of `A` are less than the word size, this will not be true.
 
 **III.** If a write operation does not change the value of a variable then a concurrent read is safe.
 
 For example:
 
 Initially, a = 100
-{% highlight julia %}
-Thread 1: a = 100
-Thread 2: b = a
-{% endhighlight %}
-`b` will read `a` successfully.
+Thread 1: `a = 100`
+Thread 2: `b = a`
 
-This is a reasonable assumption because the write does not change the value of `a`.
+The programmer can expect that `b` will read `a` as `100`.
+
+**Justification:** This is a reasonable assumption because even if machine level instructions are interleaved, the value of `a` will not change throughout the write.
 
 ## 4. Lock-free parallel BFS with static load balancing
 
