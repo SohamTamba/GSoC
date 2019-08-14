@@ -88,9 +88,9 @@ the first read instruction sets `R_1` and `R_2` to the initial value of `a` (Los
 **Interleaving of Memory Read/Write** 
 
 If the data size is greater than the word size then
-a single high level read/write operation will be borken upto into multiple machine level read/write operations.
+a single high level read/write operation will be broken up into multiple machine level read/write operations.
 
-For example, If variable `a` is of size `16-bit` and the word size is `8-bit` then a single Julia write on `a` will consist of two machine level writes as a single machine level write can change `8 bits`. 
+For example, If variable `a` is of size `16-bit` and the word size is `8-bit` then a single Julia write on `a` will consist of two machine level writes as a single machine level write can modify `8 bits` at a time. 
 
 Consider a machine with 8 bit word size.
 
@@ -164,7 +164,7 @@ For example:
 
 {% highlight julia %}
 a = true
-n_t = nthread()
+n_t = nthreads()
 a_read_true = falses(n_t)
 @threads for thread in 1:n_t
     if a
@@ -174,12 +174,10 @@ a_read_true = falses(n_t)
 end
 {% endhighlight %}
 
-At the end of this code, at least one entries in `a_read_true` will be set to true.
-This is due to the fact that the first thread to have executed the `if a`
-had performed a read operation on `a` while no concurrent write was taking place on `a`. 
+At the end of this code, the programmer can expect that at least one entries in `a_read_true` will be set to true. 
 
 **Justification:** This is a reasonable assumption because the programmer always expects a read operation to 
-succeed when a write operation is not occuring concurrently.
+succeed when a write operation is not occuring concurrently. Since every write operation is preceded by a read, the first read operation must have occurred without any concurrent write operation.
 
 **II)** If multiple threads write the same value into a variable then at the end of the multithreaded loop, the variable will have the common value.
 
@@ -200,11 +198,11 @@ At the end of this code the programmer can expect that:
 
 **b)** If `i` is in `indices` then at the end of the loop, `A[i] = 0`.
 
-**Justification:** The machine level instructions of write are idempotent. Hence, interleaving of the instructions has no effect.
+**Justification:** The machine level instructions of write are idempotent. Hence, interleaving of the machine instructions has no effect.
 
-It should be noted that this axiom is true only if the operation `A[i] = 1` only manipulates the data located at `A[i]`. If the  size of the elements of `A` are less than the word size, this will not be true.
+It should be noted that this axiom is true only if the write operation `A[i] = 1` only manipulates the data located at `A[i]`. If the  size of the elements of `A` are less than the word size, this will not be the case.
 
-**III)** If a write operation does not change the value of a variable then a concurrent read is safe.
+**III)** If a write operation does not change the value of a variable then concurrent read/write will not cause a race condition.
 
 For example:
 
@@ -214,7 +212,7 @@ Thread 2: `b = a`
 
 The programmer can expect that `b` will read `a` as `100`.
 
-**Justification:** This is a reasonable assumption because even if machine level instructions are interleaved, the value of `a` will not change throughout the write operation.
+**Justification:** Even if machine level instructions are interleaved, the value of `a` will not change throughout the write operation.
 
 ## 4. Lock-free parallel BFS with static load balancing
 
@@ -345,11 +343,11 @@ function parallel_gdistances!(
 end
 {% endhighlight %}
 
-The only data that multiple threads have read/write access to is the `visited` array.
+The only data that multiple threads have read/write access to is the `visited` array. The `old_visited` array is used to ensure that no vertex is explored multiple times.
 
 #### **Data Races**
 
-A data race can occur if 2 threads are iterating exploring vertex `u`, `w` and a vertex `i` is present in both `outneighbors(g, u)` and `outneighbors(g, w)`.
+A data race can occur on the `visited` array if 2 threads are iterating exploring vertex `u`, `w` and a vertex `i` is present in both `outneighbors(g, u)` and `outneighbors(g, w)`. Recall that each thread has its own `next_level` array.
 
 {% highlight julia %}
 for i in outneighbors(g, v)
@@ -408,7 +406,7 @@ As you can see, BFS on `g = random_regular_graph(200000, 400)` obtained a good s
 ## 5. Lock-free parallel BFS with dynamic load balancing
 
 The idea is, each thread `t` will be provided its own `cur_level` array (`cur_level_t[t]`) as well as its own `next_level` array (`next_level_t[t]`). During each level exploration,
-each thread `t` will first explore all the vertices in `cur_level_t[t]`.
+each thread `t` will explore all the vertices in `cur_level_t[t]`.
 Once it has finished exploring the vertices in `cur_level_t[t]`, the thread will steal
 vertices from other `cur_level` arrays and explore them until there are no unexplored vertices left in `cur_level_t`.
 
