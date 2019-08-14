@@ -332,6 +332,7 @@ function parallel_gdistances!(
                     vert_level[v] = n_level
                 end
             end
+	    empty!(next_level_t[t])
         end
 
 
