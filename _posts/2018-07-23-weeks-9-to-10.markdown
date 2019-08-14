@@ -35,7 +35,7 @@ After discussing this with my mentor, we decided to focus on parallelizing imple
 
 ## 3. Optimistic concurrency control
 
-As we have mentioned the previous posts, if multiple processors have read/write or write/write
+As we have discussed the previous posts, if multiple processes have read/write or write/write
 access to the data at a common memory location, it can lead to unexpected an result. This is avouded locks or atomic
 instructions to maintain the correctness of the code. As mentioned in the above section 2, atomic operations and locks degrade the performance of the parallel code and we might end up with code that is slower than the sequential code.
 
