@@ -1,8 +1,12 @@
 - url: "https://sohamtamba.github.io"
   title: "Me"
 
+- url: "https://linkedin.com/in/soham-tamba"
+  title: "Linkedin"
+
+
 - url: "https://github.com/SohamTamba"
   title: "Github"
 
-- url: "https://github.com/SohamTamba/LightGraphs.jl"
-  title: "Cloned LightGraphs"
+- url: "https://sohamtamba.github.io/projects"
+  title: "Projects"
